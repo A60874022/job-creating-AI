@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Главная - Handmade Marketplace</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .hero-section {
+            background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%);
+            color: white;
+            padding: 100px 0;
+        }
+
+        .feature-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .nav-brand {
+            font-weight: bold;
+            color: #8B4513 !important;
+        }
+
+        .btn-primary {
+            background-color: #8B4513;
+            border-color: #8B4513;
+        }
+
+        .btn-primary:hover {
+            background-color: #654321;
+            border-color: #654321;
+        }
+
+        .btn-outline-primary {
+            color: #8B4513;
+            border-color: #8B4513;
+        }
+
+        .btn-outline-primary:hover {
+            background-color: #8B4513;
+            color: white;
+        }
+
+        /* Стили для формы выхода в dropdown */
+        .logout-form {
+            display: inline;
+        }
+
+        .logout-btn {
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            padding: 0.25rem 1rem;
+            color: #212529;
+        }
+
+        .logout-btn:hover {
+            color: #16181b;
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Навигационная панель -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container">
+            <a class="navbar-brand nav-brand" href="{% url 'home' %}">
+                🎨 HandmadeMarket
+            </a>
+
+            <div class="navbar-nav ms-auto">
+                {% if user.is_authenticated %}
+                <!-- Показать для авторизованных пользователей -->
+                <div class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        👋 Привет, {{ user.email }}
+                    </a>
+                    <ul class="dropdown-menu">
+                        {% if user.is_master %}
+                        <li><a class="dropdown-item" href="#">Мой профиль мастера</a></li>
+                        <li><a class="dropdown-item" href="#">Добавить товар</a></li>
+                        {% else %}
+                        <li><a class="dropdown-item" href="#">Мои заказы</a></li>
+                        <li><a class="dropdown-item" href="#">Избранное</a></li>
+                        {% endif %}
+                        <li>
+                            <hr class="dropdown-divider">
+                        </li>
+                        <!-- ИСПРАВЛЕННАЯ КНОПКА ВЫХОДА -->
+                        <li>
+                            <form method="post" action="{% url 'logout' %}" class="logout-form">
+                                {% csrf_token %}
+                                <button type="submit" class="logout-btn">Выйти</button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+                {% else %}
+                <!-- Показать для неавторизованных пользователей -->
+                <a class="btn btn-outline-primary me-2" href="{% url 'login' %}">
+                    Войти
+                </a>
+                <a class="btn btn-primary" href="{% url 'register' %}">
+                    Зарегистрироваться
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Главный баннер -->
+    <section class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h1 class="display-4 fw-bold mb-4">
+                        Уникальные handmade-товары от мастеров
+                    </h1>
+                    <p class="lead mb-4">
+                        Находите эксклюзивные вещи ручной работы, общайтесь напрямую с мастерами и создавайте свой
+                        неповторимый стиль.
+                    </p>
+                    <div class="d-flex gap-3 flex-wrap">
+                        {% if not user.is_authenticated %}
+                        <a href="{% url 'register' %}" class="btn btn-light btn-lg px-4">
+                            Начать покупки
+                        </a>
+                        {% endif %}
+                        {% if user.is_authenticated and not user.is_master %}
+                        <a href="#" class="btn btn-outline-light btn-lg px-4">
+                            Стать мастером
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="col-lg-6 text-center">
+                    <div class="placeholder-image bg-light bg-opacity-25 rounded-3 p-5">
+                        <h3>🎨</h3>
+                        <p>Здесь будут изображения товаров</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Особенности платформы -->
+    <section class="py-5">
+        <div class="container">
+            <div class="row text-center mb-5">
+                <div class="col">
+                    <h2 class="fw-bold">Почему выбирают нас</h2>
+                    <p class="text-muted">Лучшая площадка для handmade-товаров</p>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <div class="mb-3" style="font-size: 3rem;">🛍️</div>
+                            <h5 class="card-title">Прямые покупки</h5>
+                            <p class="card-text text-muted">
+                                Общайтесь напрямую с мастерами, задавайте вопросы и покупайте без посредников.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <div class="mb-3" style="font-size: 3rem;">🎨</div>
+                            <h5 class="card-title">Уникальные товары</h5>
+                            <p class="card-text text-muted">
+                                Каждая вещь создается вручную, что гарантирует ее уникальность и качество.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card feature-card h-100">
+                        <div class="card-body text-center p-4">
+                            <div class="mb-3" style="font-size: 3rem;">💬</div>
+                            <h5 class="card-title">Встроенный мессенджер</h5>
+                            <p class="card-text text-muted">
+                                Обсуждайте детали заказа прямо на платформе с помощью удобного чата.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Для мастеров -->
+    <section class="py-5 bg-light">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h2 class="fw-bold mb-4">Вы мастер?</h2>
+                    <p class="lead mb-4">
+                        Присоединяйтесь к нашему сообществу и начните продавать свои handmade-товары тысячам
+                        покупателей.
+                    </p>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">✅ Простая регистрация как мастера</li>
+                        <li class="mb-2">✅ Легкое добавление товаров</li>
+                        <li class="mb-2">✅ Прямое общение с покупателями</li>
+                        <li class="mb-2">✅ Без комиссии за продажи</li>
+                    </ul>
+                    {% if not user.is_authenticated %}
+                    <a href="{% url 'register' %}" class="btn btn-primary btn-lg px-4">
+                        Стать мастером
+                    </a>
+                    {% elif user.is_authenticated and not user.is_master %}
+                    <a href="#" class="btn btn-primary btn-lg px-4">
+                        Стать мастером
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="col-lg-6 text-center">
+                    <div class="placeholder-image bg-white rounded-3 p-5 shadow-sm">
+                        <h3>🛠️</h3>
+                        <p>Инструменты для мастеров</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Футер -->
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>HandmadeMarket</h5>
+                    <p class="text-white-50">Площадка для уникальных handmade-товаров</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="text-white-50 mb-0">&copy; 2024 HandmadeMarket. Все права защищены.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
