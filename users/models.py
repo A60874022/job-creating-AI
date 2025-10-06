@@ -47,3 +47,13 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
+
+
+class Profile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    avatar = models.ImageField(upload_to='profile_images', default='default_avatar.jpg', blank=True, null=True)
+    bio = models.TextField(max_length=500, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+
+    def __str__(self):
+        return f'Профиль {self.user.email}'

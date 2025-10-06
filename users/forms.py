@@ -2,7 +2,8 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
-from .models import User
+from django.contrib.auth.forms import UserChangeForm
+from .models import User, Profile
 
 class UserRegistrationForm(UserCreationForm):
     """
@@ -77,3 +78,26 @@ class UserLoginForm(AuthenticationForm):
         ),
         'inactive': _("This account is inactive."),
     }
+
+
+class UserEditForm(UserChangeForm):
+    # Убираем поле password, чтобы пользователь не видел его в открытом виде
+    password = None
+
+    class Meta:
+        model = User
+        fields = ('email', 'first_name', 'last_name') # Добавляем поля при необходимости
+
+class ProfileEditForm(forms.ModelForm):
+    class Meta:
+        model = Profile
+        fields = ('avatar', 'bio', 'city')
+        widgets = {
+            'bio': forms.Textarea(attrs={'rows': 4, 'placeholder': 'Расскажите о себе и своем творчестве...'}),
+            'city': forms.TextInput(attrs={'placeholder': 'Ваш город'}),
+        }
+        labels = {
+            'avatar': 'Аватар профиля',
+            'bio': 'О себе',
+            'city': 'Город',
+        }

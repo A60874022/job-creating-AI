@@ -106,3 +106,34 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
     def form_valid(self, form):
         messages.success(self.request, _('Your password has been reset successfully!'))
         return super().form_valid(form)
+
+
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from .forms import UserEditForm, ProfileEditForm
+
+@login_required
+def edit_profile(request):
+    if request.method == 'POST':
+        # instance=request.user и instance=request.user.profile заполняют форму текущими данными
+        user_form = UserEditForm(request.POST, instance=request.user)
+        profile_form = ProfileEditForm(request.POST, request.FILES, instance=request.user.profile) # request.FILES важен для загрузки изображений!
+
+        if user_form.is_valid() and profile_form.is_valid():
+            user_form.save()
+            profile_form.save()
+            messages.success(request, 'Ваш профиль был успешно обновлен!')
+            return redirect('edit_profile') # Перенаправляем обратно на страницу профиля
+        else:
+            messages.error(request, 'Пожалуйста, исправьте ошибки в форме.')
+
+    else:
+        user_form = UserEditForm(instance=request.user)
+        profile_form = ProfileEditForm(instance=request.user.profile)
+
+    context = {
+        'user_form': user_form,
+        'profile_form': profile_form,
+    }
+    return render(request, 'users/edit_profile.html', context)

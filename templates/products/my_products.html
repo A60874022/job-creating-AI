@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Мои товары | HandmadeMarket{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Заголовок и кнопка -->
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <h1 class="fw-bold mb-2">🛍️ Мои товары</h1>
+            <p class="text-muted">Управляйте вашими handmade-товарами</p>
+        </div>
+        <a href="{% url 'product_add' %}" class="btn btn-primary btn-lg px-4">
+            ➕ Добавить товар
+        </a>
+    </div>
+
+    {% if products %}
+    <!-- Сетка товаров -->
+    <div class="row g-4">
+        {% for product in products %}
+        <div class="col-xl-3 col-lg-4 col-md-6">
+            <div class="card h-100 shadow-sm border-0 product-card">
+                <!-- Изображение товара -->
+                <div class="position-relative">
+                    {% with main_image=product.get_main_image %}
+                    {% if main_image %}
+                    <img src="{{ main_image.image.url }}" class="card-img-top product-image" alt="{{ product.title }}"
+                        style="height: 200px; object-fit: cover;">
+                    {% else %}
+                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center"
+                        style="height: 200px;">
+                        <div class="text-center text-muted">
+                            <span style="font-size: 3rem;">🎨</span>
+                            <p class="mt-2">Нет изображения</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endwith %}
+
+                    <!-- Бейдж статуса -->
+                    <div class="position-absolute top-0 end-0 m-2">
+                        <span class="badge {% if product.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                            {% if product.is_active %}Активный{% else %}Неактивный{% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Информация о товаре -->
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title fw-bold">{{ product.title }}</h5>
+                    <p class="card-text text-muted flex-grow-1">
+                        {{ product.description|truncatewords:15 }}
+                    </p>
+
+                    <div class="mt-auto">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="h5 mb-0 text-brown fw-bold">{{ product.price }} ₽</span>
+                            {% if product.category %}
+                            <span class="badge bg-light text-brown border">{{ product.category.name }}</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-flex gap-2 flex-wrap">
+                            <a href="{% url 'product_edit' product.pk %}"
+                                class="btn btn-outline-primary btn-sm flex-fill">
+                                ✏️ Редактировать
+                            </a>
+                            <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="tooltip"
+                                title="Кол-во изображений">
+                                🖼️ {{ product.images.count }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Футер карточки -->
+                <div class="card-footer bg-transparent border-0 pt-0">
+                    <small class="text-muted">
+                        Добавлен {{ product.created_at|date:"d.m.Y" }}
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Состояние пустого списка -->
+    <div class="text-center py-5">
+        <div class="mb-4" style="font-size: 4rem;">🎁</div>
+        <h3 class="fw-bold mb-3">У вас пока нет товаров</h3>
+        <p class="text-muted mb-4">Добавьте свой первый handmade-товар и начните продавать</p>
+        <a href="{% url 'product_add' %}" class="btn btn-primary btn-lg px-4">
+            🎨 Добавить первый товар
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .text-brown {
+        color: #8B4513;
+    }
+
+    .product-card {
+        border-radius: 15px;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .product-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(139, 69, 19, 0.1) !important;
+    }
+
+    .product-image {
+        border-radius: 15px 15px 0 0;
+    }
+
+    .btn-primary {
+        background-color: #8B4513;
+        border-color: #8B4513;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .btn-primary:hover {
+        background-color: #654321;
+        border-color: #654321;
+    }
+
+    .btn-outline-primary {
+        color: #8B4513;
+        border-color: #8B4513;
+        border-radius: 8px;
+    }
+
+    .btn-outline-primary:hover {
+        background-color: #8B4513;
+        color: white;
+    }
+
+    .badge.bg-light {
+        border: 1px solid #8B4513 !important;
+    }
+</style>
+
+<script>
+    // Инициализация tooltips
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    });
+</script>
+{% endblock %}

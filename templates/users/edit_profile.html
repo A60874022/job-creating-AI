@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Редактирование профиля{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Редактирование профиля</h2>
+            <p>Здесь вы можете изменить информацию о себе.</p>
+
+            <!-- Навигационные вкладки -->
+            <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="main-tab" data-bs-toggle="tab" data-bs-target="#main"
+                        type="button" role="tab" aria-controls="main" aria-selected="true">Основная информация</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="goods-tab" data-bs-toggle="tab" data-bs-target="#goods" type="button"
+                        role="tab" aria-controls="goods" aria-selected="false">Мои товары</button>
+                </li>
+            </ul>
+
+            <!-- Содержимое вкладок -->
+            <div class="tab-content" id="profileTabsContent">
+                <!-- Вкладка "Основная информация" -->
+                <div class="tab-pane fade show active" id="main" role="tabpanel" aria-labelledby="main-tab">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <!-- Отображение системных сообщений -->
+                        {% if messages %}
+                        {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+
+                        <div class="row">
+                            <!-- Форма пользователя (User) -->
+                            <div class="col-md-6">
+                                <h4>Основные данные</h4>
+                                <div class="mb-3">
+                                    <label for="{{ user_form.email.id_for_label }}" class="form-label">Email</label>
+                                    {{ user_form.email }}
+                                    {% if user_form.email.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ user_form.email.errors.0 }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <!-- Добавьте другие поля user_form при необходимости (first_name, last_name) -->
+                            </div>
+
+                            <!-- Форма профиля (Profile) -->
+                            <div class="col-md-6">
+                                <h4>Дополнительная информация</h4>
+
+                                <div class="mb-3">
+                                    <label for="{{ profile_form.avatar.id_for_label }}" class="form-label">{{
+                                        profile_form.avatar.label }}</label>
+                                    {{ profile_form.avatar }}
+                                    {% if profile_form.avatar.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {{ profile_form.avatar.errors.0 }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ profile_form.city.id_for_label }}" class="form-label">{{
+                                        profile_form.city.label }}</label>
+                                    {{ profile_form.city }}
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ profile_form.bio.id_for_label }}" class="form-label">{{
+                                        profile_form.bio.label }}</label>
+                                    {{ profile_form.bio }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Сохранить изменения</button>
+                    </form>
+                </div>
+
+                <!-- Вкладка "Мои товары" (заглушка) -->
+                <div class="tab-pane fade" id="goods" role="tabpanel" aria-labelledby="goods-tab">
+                    <h4>Мои товары</h4>
+                    <p>Здесь будет отображаться список ваших товаров. Этот функционал мы добавим на следующем этапе.</p>
+                    <div class="alert alert-info" role="alert">
+                        Пока здесь пусто. После реализации этапа с товарами вы сможете управлять своими предложениями.
+                    </div>
+                    <!-- Место для будущего списка товаров -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

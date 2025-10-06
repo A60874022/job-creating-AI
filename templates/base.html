@@ -8,8 +8,10 @@
     <title>{% block title %}Handmade Marketplace{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .navbar-brand {
+        .nav-brand {
             font-weight: bold;
+            color: #8B4513 !important;
+            font-size: 1.5rem;
         }
 
         .footer {
@@ -17,39 +19,115 @@
             padding: 1rem 0;
             margin-top: 2rem;
         }
+
+        .btn-primary {
+            background-color: #8B4513;
+            border-color: #8B4513;
+        }
+
+        .btn-primary:hover {
+            background-color: #654321;
+            border-color: #654321;
+        }
+
+        .btn-outline-primary {
+            color: #8B4513;
+            border-color: #8B4513;
+        }
+
+        .btn-outline-primary:hover {
+            background-color: #8B4513;
+            color: white;
+        }
+
+        /* Стили для формы выхода в dropdown */
+        .logout-form {
+            display: inline;
+            width: 100%;
+        }
+
+        .logout-btn {
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            padding: 0.375rem 1rem;
+            color: #212529;
+            transition: background-color 0.15s ease-in-out;
+        }
+
+        .logout-btn:hover {
+            color: #16181b;
+            background-color: #f8f9fa;
+        }
+
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .dropdown-item {
+            transition: background-color 0.15s ease-in-out;
+        }
+
+        .dropdown-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        /* Стили для уведомлений */
+        .alert {
+            border-radius: 10px;
+            border: none;
+        }
+
+        /* Стили для активной навигации */
+        .nav-link.active {
+            color: #8B4513 !important;
+            font-weight: 600;
+        }
     </style>
 </head>
 
 <body>
     <!-- Навигационная панель -->
     <header>
-        <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <nav class="navbar navbar-expand-lg navbar-light bg-white">
             <div class="container">
-                <a class="navbar-brand" href="{% url 'home' %}">🎨 HandmadeMarket</a>
+                <a class="navbar-brand nav-brand" href="{% url 'home' %}">🎨 HandmadeMarket</a>
+
+                <!-- Основная навигация -->
+                <div class="navbar-nav mx-auto">
+                    <a class="nav-link" href="{% url 'catalog' %}">🛍️ Каталог</a>
+                </div>
 
                 <div class="navbar-nav ms-auto">
                     {% if user.is_authenticated %}
                     <!-- Меню для авторизованных пользователей -->
                     <div class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+                            aria-expanded="false">
                             👋 Привет, {{ user.email }}
                         </a>
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu dropdown-menu-end">
                             {% if user.is_master %}
-                            <li><a class="dropdown-item" href="#">Мой профиль мастера</a></li>
-                            <li><a class="dropdown-item" href="#">Добавить товар</a></li>
+                            <li><a class="dropdown-item" href="{% url 'my_products' %}">🛍️ Мои товары</a></li>
+                            <li><a class="dropdown-item" href="{% url 'product_add' %}">🎨 Добавить товар</a></li>
                             {% else %}
-                            <li><a class="dropdown-item" href="#">Мои заказы</a></li>
-                            <li><a class="dropdown-item" href="#">Избранное</a></li>
+                            <li><a class="dropdown-item" href="{% url 'customer_profile' %}?tab=orders">📦 Мои
+                                    заказы</a></li>
+                            <li><a class="dropdown-item" href="{% url 'customer_profile' %}?tab=favorites">❤️
+                                    Избранное</a></li>
+                            <li><a class="dropdown-item" href="{% url 'customer_profile' %}?tab=dialogs">💬 Диалоги</a>
+                            </li>
                             {% endif %}
+                            <li><a class="dropdown-item" href="{% url 'edit_profile' %}">👤 Мой профиль</a></li>
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
                             <!-- Форма для выхода -->
                             <li>
-                                <form method="post" action="{% url 'logout' %}" class="d-inline">
+                                <form method="post" action="{% url 'logout' %}" class="logout-form">
                                     {% csrf_token %}
-                                    <button type="submit" class="dropdown-item border-0 bg-transparent">Выйти</button>
+                                    <button type="submit" class="logout-btn">🚪 Выйти</button>
                                 </form>
                             </li>
                         </ul>
@@ -64,6 +142,26 @@
         </nav>
     </header>
 
+    <!-- Уведомления -->
+    {% if messages %}
+    <div class="container mt-3">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {% if message.tags == 'success' %}
+            ✅ {{ message }}
+            {% elif message.tags == 'error' %}
+            ❌ {{ message }}
+            {% elif message.tags == 'warning' %}
+            ⚠️ {{ message }}
+            {% else %}
+            ℹ️ {{ message }}
+            {% endif %}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Основное содержимое -->
     <main class="container my-4">
         {% block content %}
@@ -73,12 +171,72 @@
 
     <!-- Футер -->
     <footer class="footer mt-auto py-3 bg-light">
-        <div class="container text-center">
-            <span class="text-muted">&copy; 2024 HandmadeMarket. Все права защищены.</span>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold">HandmadeMarket</h6>
+                    <p class="text-muted small mb-0">Площадка для уникальных handmade-товаров</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="text-muted small mb-0">&copy; 2024 HandmadeMarket. Все права защищены.</p>
+                </div>
+            </div>
         </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Дополнительные скрипты для улучшения UX -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Активация всех dropdowns
+            var dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'))
+            var dropdownList = dropdownElementList.map(function (dropdownToggleEl) {
+                return new bootstrap.Dropdown(dropdownToggleEl)
+            });
+
+            // Плавная прокрутка для всех якорных ссылок
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth'
+                        });
+                    }
+                });
+            });
+
+            // Автоматическое скрытие уведомлений через 5 секунд
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                setTimeout(() => {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }, 5000);
+            });
+
+            // Добавляем активный класс к текущей странице в навигации
+            const currentPath = window.location.pathname;
+            document.querySelectorAll('.nav-link').forEach(link => {
+                const linkPath = link.getAttribute('href');
+                if (linkPath && currentPath.startsWith(linkPath.split('?')[0]) && linkPath !== '/') {
+                    link.classList.add('active', 'fw-bold');
+                }
+            });
+
+            // Подсветка активной страницы в выпадающем меню
+            const currentUrl = window.location.href;
+            document.querySelectorAll('.dropdown-item').forEach(item => {
+                const itemHref = item.getAttribute('href');
+                if (itemHref && currentUrl.includes(itemHref.split('?')[0]) && itemHref !== '#') {
+                    item.style.backgroundColor = '#f8f9fa';
+                    item.style.color = '#8B4513';
+                }
+            });
+        });
+    </script>
 </body>
 
 </html>

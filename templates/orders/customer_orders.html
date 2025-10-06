@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Мои заказы | HandmadeMarket{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="fw-bold mb-2">📦 Мои заказы</h1>
+                    <p class="text-muted">История ваших заказов handmade-товаров</p>
+                </div>
+            </div>
+
+            {% if orders %}
+            <div class="row">
+                {% for order in orders %}
+                <div class="col-12 mb-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="fw-bold mb-1">Заказ #{{ order.id }}</h5>
+                                <small class="text-muted">Создан: {{ order.created_at|date:"d.m.Y H:i" }}</small>
+                            </div>
+                            <div>
+                                <span class="badge 
+                                        {% if order.status == 'оформлен' %}bg-primary
+                                        {% elif order.status == 'в_работе' %}bg-warning
+                                        {% elif order.status == 'отправлен' %}bg-success
+                                        {% else %}bg-secondary{% endif %} fs-6">
+                                    {{ order.get_status_display }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {% for item in order.items.all %}
+                            <div
+                                class="row align-items-center mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                                <div class="col-md-2">
+                                    {% if item.product.images.all %}
+                                    <img src="{{ item.product.images.first.image.url }}" class="img-fluid rounded"
+                                        alt="{{ item.product.title }}"
+                                        style="width: 80px; height: 80px; object-fit: cover;">
+                                    {% else %}
+                                    <div class="bg-light rounded d-flex align-items-center justify-content-center"
+                                        style="width: 80px; height: 80px;">
+                                        <span class="text-muted">🎨</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="fw-bold mb-1">{{ item.product.title }}</h6>
+                                    <p class="text-muted small mb-1">{{ item.product.description|truncatewords:10 }}</p>
+                                    <small class="text-muted">Мастер: {{ item.product.master.email }}</small>
+                                </div>
+                                <div class="col-md-2 text-center">
+                                    <span class="fw-bold">×{{ item.quantity }}</span>
+                                </div>
+                                <div class="col-md-2 text-end">
+                                    <span class="fw-bold text-brown">{{ item.price_at_moment }} ₽</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+
+                            <div class="row mt-3">
+                                <div class="col-12 text-end">
+                                    <h5 class="fw-bold text-brown">
+                                        Итого: {{ order.items.count }} товар(а) на
+                                        {{ order.get_total_cost }} ₽
+                                    </h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-footer bg-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    Обновлен: {{ order.updated_at|date:"d.m.Y H:i" }}
+                                </small>
+                                <button class="btn btn-outline-primary btn-sm">
+                                    💬 Написать мастеру
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <div class="mb-4" style="font-size: 4rem;">📦</div>
+                <h3 class="fw-bold mb-3">У вас пока нет заказов</h3>
+                <p class="text-muted mb-4">Найдите интересные товары в нашем каталоге и сделайте свой первый заказ</p>
+                <a href="{% url 'catalog' %}" class="btn btn-primary btn-lg px-4">
+                    🛍️ Перейти в каталог
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .text-brown {
+        color: #8B4513;
+    }
+
+    .btn-primary {
+        background-color: #8B4513;
+        border-color: #8B4513;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .btn-primary:hover {
+        background-color: #654321;
+        border-color: #654321;
+    }
+</style>
+{% endblock %}

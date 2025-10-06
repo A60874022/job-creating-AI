@@ -87,12 +87,13 @@
                     </a>
                     <ul class="dropdown-menu">
                         {% if user.is_master %}
-                        <li><a class="dropdown-item" href="#">Мой профиль мастера</a></li>
-                        <li><a class="dropdown-item" href="#">Добавить товар</a></li>
+                        <li><a class="dropdown-item" href="{% url 'my_products' %}">🛍️ Мои товары</a></li>
+                        <li><a class="dropdown-item" href="{% url 'product_add' %}">🎨 Добавить товар</a></li>
                         {% else %}
-                        <li><a class="dropdown-item" href="#">Мои заказы</a></li>
-                        <li><a class="dropdown-item" href="#">Избранное</a></li>
+                        <li><a class="dropdown-item" href="#">📦 Мои заказы</a></li>
+                        <li><a class="dropdown-item" href="#">❤️ Избранное</a></li>
                         {% endif %}
+                        <li><a class="dropdown-item" href="{% url 'edit_profile' %}">👤 Мой профиль</a></li>
                         <li>
                             <hr class="dropdown-divider">
                         </li>
@@ -100,7 +101,7 @@
                         <li>
                             <form method="post" action="{% url 'logout' %}" class="logout-form">
                                 {% csrf_token %}
-                                <button type="submit" class="logout-btn">Выйти</button>
+                                <button type="submit" class="logout-btn">🚪 Выйти</button>
                             </form>
                         </li>
                     </ul>
@@ -131,15 +132,28 @@
                         неповторимый стиль.
                     </p>
                     <div class="d-flex gap-3 flex-wrap">
+                        <!-- ОБНОВЛЕННЫЕ КНОПКИ -->
                         {% if not user.is_authenticated %}
-                        <a href="{% url 'register' %}" class="btn btn-light btn-lg px-4">
-                            Начать покупки
+                        <a href="{% url 'catalog' %}" class="btn btn-light btn-lg px-4">
+                            🛍️ Начать покупки
                         </a>
-                        {% endif %}
+                        <a href="{% url 'register' %}" class="btn btn-outline-light btn-lg px-4">
+                            🎨 Стать мастером
+                        </a>
+                        {% else %}
+                        <a href="{% url 'catalog' %}" class="btn btn-light btn-lg px-4">
+                            🛍️ Смотреть каталог
+                        </a>
                         {% if user.is_authenticated and not user.is_master %}
                         <a href="#" class="btn btn-outline-light btn-lg px-4">
-                            Стать мастером
+                            🛠️ Стать мастером
                         </a>
+                        {% endif %}
+                        {% if user.is_master %}
+                        <a href="{% url 'product_add' %}" class="btn btn-outline-light btn-lg px-4">
+                            ➕ Добавить товар
+                        </a>
+                        {% endif %}
                         {% endif %}
                     </div>
                 </div>
@@ -148,6 +162,20 @@
                         <h3>🎨</h3>
                         <p>Здесь будут изображения товаров</p>
                     </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Кнопка быстрого перехода в каталог -->
+    <section class="py-4 bg-light">
+        <div class="container">
+            <div class="row">
+                <div class="col-12 text-center">
+                    <p class="mb-3">Уже знаете, что ищете?</p>
+                    <a href="{% url 'catalog' %}" class="btn btn-primary btn-lg">
+                        🔍 Перейти в полный каталог товаров
+                    </a>
                 </div>
             </div>
         </div>
@@ -219,21 +247,45 @@
                         <li class="mb-2">✅ Прямое общение с покупателями</li>
                         <li class="mb-2">✅ Без комиссии за продажи</li>
                     </ul>
-                    {% if not user.is_authenticated %}
-                    <a href="{% url 'register' %}" class="btn btn-primary btn-lg px-4">
-                        Стать мастером
-                    </a>
-                    {% elif user.is_authenticated and not user.is_master %}
-                    <a href="#" class="btn btn-primary btn-lg px-4">
-                        Стать мастером
-                    </a>
-                    {% endif %}
+                    <div class="d-flex gap-3 flex-wrap">
+                        {% if not user.is_authenticated %}
+                        <a href="{% url 'register' %}?is_master=true" class="btn btn-primary btn-lg px-4">
+                            🛠️ Стать мастером
+                        </a>
+                        {% elif user.is_authenticated and not user.is_master %}
+                        <a href="#" class="btn btn-primary btn-lg px-4">
+                            🛠️ Стать мастером
+                        </a>
+                        {% endif %}
+                        {% if user.is_master %}
+                        <a href="{% url 'product_add' %}" class="btn btn-primary btn-lg px-4">
+                            ➕ Добавить товар
+                        </a>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="col-lg-6 text-center">
                     <div class="placeholder-image bg-white rounded-3 p-5 shadow-sm">
                         <h3>🛠️</h3>
                         <p>Инструменты для мастеров</p>
                     </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Призыв к действию -->
+    <section class="py-5" style="background: linear-gradient(135deg, #8B4513 0%, #A0522D 100%); color: white;">
+        <div class="container">
+            <div class="row text-center">
+                <div class="col-lg-8 mx-auto">
+                    <h2 class="fw-bold mb-4">Готовы найти что-то особенное?</h2>
+                    <p class="lead mb-4">
+                        Откройте для себя уникальные handmade-товары и поддержите талантливых мастеров
+                    </p>
+                    <a href="{% url 'catalog' %}" class="btn btn-light btn-lg px-5">
+                        🎨 Перейти в каталог
+                    </a>
                 </div>
             </div>
         </div>
