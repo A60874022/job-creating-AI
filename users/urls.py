@@ -3,6 +3,8 @@ from django.contrib.auth import views as auth_views
 from . import views
 from .views import edit_profile
 
+app_name = 'users'
+
 urlpatterns = [
     # Регистрация и вход
     path('register/', views.RegisterView.as_view(), name='register'),

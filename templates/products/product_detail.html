@@ -6,151 +6,168 @@
 {% block content %}
 <div class="container mt-4">
     <div class="row">
-        <!-- Хлебные крошки -->
-        <div class="col-12 mb-4">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{% url 'catalog' %}">Каталог</a></li>
-                    {% if product.category %}
-                    <li class="breadcrumb-item"><a href="{% url 'catalog' %}?category={{ product.category.slug }}">{{
-                            product.category.name }}</a></li>
-                    {% endif %}
-                    <li class="breadcrumb-item active">{{ product.title }}</li>
-                </ol>
-            </nav>
-        </div>
-    </div>
-
-    <div class="row">
-        <!-- Галерея изображений -->
-        <div class="col-lg-6 mb-4">
-            <div class="card border-0">
-                <div class="card-body p-0">
-                    {% with images=product.images.all %}
-                    {% if images %}
-                    <!-- Основное изображение -->
-                    <div class="main-image mb-3">
-                        {% with main_image=images.first %}
-                        <img src="{{ main_image.image.url }}" class="img-fluid rounded-3 w-100"
-                            alt="{{ product.title }}" style="max-height: 500px; object-fit: cover;" id="mainImage">
-                        {% endwith %}
+        <!-- Изображения товара -->
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-3">
+                    {% if product.images.all %}
+                    <div id="productCarousel" class="carousel slide" data-bs-ride="carousel">
+                        <div class="carousel-inner">
+                            {% for image in product.images.all %}
+                            <div class="carousel-item {% if forloop.first %}active{% endif %}">
+                                <img src="{{ image.image.url }}" class="d-block w-100 rounded" alt="{{ product.title }}"
+                                    style="height: 400px; object-fit: cover;">
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% if product.images.count > 1 %}
+                        <button class="carousel-control-prev" type="button" data-bs-target="#productCarousel"
+                            data-bs-slide="prev">
+                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Previous</span>
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#productCarousel"
+                            data-bs-slide="next">
+                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                            <span class="visually-hidden">Next</span>
+                        </button>
+                        {% endif %}
                     </div>
-
-                    <!-- Миниатюры -->
-                    {% if images|length > 1 %}
-                    <div class="image-thumbnails d-flex gap-2 flex-wrap">
-                        {% for image in images %}
-                        <img src="{{ image.image.url }}" class="img-thumbnail {% if forloop.first %}active{% endif %}"
-                            alt="{{ product.title }}"
-                            style="width: 80px; height: 80px; object-fit: cover; cursor: pointer;"
-                            onclick="changeMainImage('{{ image.image.url }}', this)">
-                        {% endfor %}
-                    </div>
-                    {% endif %}
                     {% else %}
-                    <div class="text-center py-5 bg-light rounded-3">
-                        <span style="font-size: 4rem;">🎨</span>
-                        <p class="text-muted mt-3">Изображение отсутствует</p>
+                    <div class="bg-light rounded d-flex align-items-center justify-content-center"
+                        style="height: 400px;">
+                        <span class="text-muted" style="font-size: 4rem;">🎨</span>
                     </div>
                     {% endif %}
-                    {% endwith %}
                 </div>
             </div>
         </div>
 
         <!-- Информация о товаре -->
-        <div class="col-lg-6">
-            <div class="card border-0">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-sm">
                 <div class="card-body">
-                    <h1 class="h2 fw-bold mb-3">{{ product.title }}</h1>
-
-                    {% if product.category %}
-                    <span class="badge bg-primary mb-3">{{ product.category.name }}</span>
-                    {% endif %}
-
-                    <div class="mb-4">
-                        <span class="h3 text-brown fw-bold">{{ product.price }} ₽</span>
+                    <!-- Заголовок и цена -->
+                    <div class="mb-3">
+                        <h1 class="h2 fw-bold mb-2">{{ product.title }}</h1>
+                        <div class="d-flex align-items-center mb-3">
+                            <span class="h3 text-brown fw-bold">{{ product.price }} ₽</span>
+                            <span class="badge bg-warning ms-3 fs-6">Handmade</span>
+                        </div>
                     </div>
 
+                    <!-- Информация о мастере -->
+                    <div class="mb-4 p-3 bg-light rounded">
+                        <div class="d-flex align-items-center">
+                            {% if product.master.profile.avatar %}
+                            <img src="{{ product.master.profile.avatar.url }}" class="rounded-circle me-3"
+                                alt="Аватар {{ product.master.email }}"
+                                style="width: 50px; height: 50px; object-fit: cover;">
+                            {% else %}
+                            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3"
+                                style="width: 50px; height: 50px;">
+                                <span class="text-white">👤</span>
+                            </div>
+                            {% endif %}
+                            <div>
+                                <h6 class="fw-bold mb-1">Мастер</h6>
+                                <p class="text-muted mb-0">{{ product.master.email }}</p>
+                                {% if product.master.profile.city %}
+                                <small class="text-muted">📍 {{ product.master.profile.city }}</small>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Категория -->
+                    <div class="mb-3">
+                        <span class="badge bg-brown fs-6">{{ product.category.name }}</span>
+                    </div>
+
+                    <!-- Описание -->
                     <div class="mb-4">
                         <h5 class="fw-bold mb-2">Описание</h5>
                         <p class="text-muted" style="line-height: 1.6;">{{ product.description }}</p>
                     </div>
 
-                    <!-- Кнопки действий -->
-                    <div class="d-grid gap-2 d-md-flex mb-4">
-                        <form method="post" action="{% url 'create_order' product.id %}" class="flex-fill">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-primary btn-lg w-100">
-                                🛒 Добавить в заказ
-                            </button>
-                        </form>
-                        <button class="btn btn-outline-secondary btn-lg" data-bs-toggle="tooltip"
-                            title="Добавить в избранное">
-                            ❤️
-                        </button>
+                    <!-- Детали товара -->
+                    <div class="mb-4">
+                        <h5 class="fw-bold mb-3">Детали товара</h5>
+                        <div class="row">
+                            <div class="col-6">
+                                <small class="text-muted">Дата создания</small>
+                                <p class="mb-2 fw-bold">{{ product.created_at|date:"d.m.Y" }}</p>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Статус</small>
+                                <p class="mb-2 fw-bold">
+                                    {% if product.is_active %}
+                                    <span class="text-success">● Активный</span>
+                                    {% else %}
+                                    <span class="text-danger">● Неактивный</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Информация о мастере -->
-                    <div class="card bg-light border-0">
-                        <div class="card-body">
-                            <h5 class="card-title fw-bold mb-3">👨‍🎨 О мастере</h5>
-                            <div class="d-flex align-items-center mb-3">
-                                {% if product.master.profile.avatar %}
-                                <img src="{{ product.master.profile.avatar.url }}" class="rounded-circle me-3"
-                                    width="60" height="60" alt="Аватар мастера" style="object-fit: cover;">
-                                {% else %}
-                                <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3"
-                                    style="width: 60px; height: 60px;">
-                                    <span class="text-white fs-4">👤</span>
-                                </div>
-                                {% endif %}
-                                <div>
-                                    <h6 class="fw-bold mb-1">{{ product.master.email }}</h6>
-                                    {% if product.master.profile.city %}
-                                    <p class="text-muted mb-1">📍 {{ product.master.profile.city }}</p>
-                                    {% endif %}
-                                    {% if product.master.profile.bio %}
-                                    <p class="text-muted small mb-0">{{ product.master.profile.bio|truncatewords:20 }}
-                                    </p>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <button class="btn btn-outline-primary w-100" data-bs-toggle="tooltip"
-                                title="Написать мастеру">
-                                💬 Написать сообщение
+                    <!-- Кнопки действий -->
+                    <div class="d-grid gap-2 d-md-flex mb-4">
+                        <!-- Кнопка добавления в корзину -->
+                        <form method="post" action="{% url 'orders:add_to_cart' product.id %}" class="flex-fill">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                🛒 Добавить в корзину
                             </button>
-                        </div>
+                        </form>
+
+                        <!-- Кнопка избранного -->
+                        {% if user.is_authenticated %}
+                        {% if product in user.favorites.all %}
+                        <form method="post" action="{% url 'products:remove_from_favorites' product.id %}" class="ms-2">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger btn-lg" title="Удалить из избранного">
+                                ❤️
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="{% url 'products:add_to_favorites' product.id %}" class="ms-2">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-secondary btn-lg" title="Добавить в избранное">
+                                🤍
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% else %}
+                        <a href="{% url 'login' %}" class="btn btn-outline-secondary btn-lg ms-2"
+                            title="Войдите, чтобы добавить в избранное">
+                            🤍
+                        </a>
+                        {% endif %}
+                    </div>
+
+                    <!-- Быстрые ссылки -->
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'orders:cart_view' %}" class="btn btn-outline-brown">
+                            📦 Перейти в корзину
+                        </a>
+                        <a href="{% url 'products:catalog' %}" class="btn btn-outline-secondary">>
+                            ← Вернуться в каталог
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Дополнительная информация -->
+    <!-- Похожие товары -->
     <div class="row mt-5">
         <div class="col-12">
-            <div class="card border-0">
-                <div class="card-body">
-                    <h5 class="fw-bold mb-3">📋 Детали товара</h5>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><strong>Дата добавления:</strong> {{ product.created_at|date:"d.m.Y" }}
-                                </li>
-                                <li class="mb-2"><strong>Категория:</strong> {{ product.category.name|default:"Не
-                                    указана" }}</li>
-                            </ul>
-                        </div>
-                        <div class="col-md-6">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><strong>Статус:</strong>
-                                    <span class="badge bg-success">Активный</span>
-                                </li>
-                                <li class="mb-2"><strong>ID товара:</strong> #{{ product.id }}</li>
-                            </ul>
-                        </div>
-                    </div>
+            <h3 class="fw-bold mb-4">Похожие товары</h3>
+            <div class="row">
+                <!-- Здесь можно добавить похожие товары из той же категории -->
+                <div class="col-12 text-center py-4">
+                    <p class="text-muted">Здесь будут показаны похожие товары</p>
                 </div>
             </div>
         </div>
@@ -160,11 +177,6 @@
 <style>
     .text-brown {
         color: #8B4513;
-    }
-
-    .img-thumbnail.active {
-        border-color: #8B4513 !important;
-        border-width: 2px;
     }
 
     .btn-primary {
@@ -179,36 +191,26 @@
         border-color: #654321;
     }
 
-    .breadcrumb-item a {
+    .btn-outline-brown {
         color: #8B4513;
-        text-decoration: none;
+        border-color: #8B4513;
+        border-radius: 10px;
+        font-weight: 600;
     }
 
-    .breadcrumb-item.active {
-        color: #6c757d;
+    .btn-outline-brown:hover {
+        background-color: #8B4513;
+        border-color: #8B4513;
+        color: white;
+    }
+
+    .bg-brown {
+        background-color: #8B4513 !important;
+    }
+
+    .carousel-control-prev,
+    .carousel-control-next {
+        width: 5%;
     }
 </style>
-
-<script>
-    function changeMainImage(imageUrl, element) {
-        // Меняем основное изображение
-        document.getElementById('mainImage').src = imageUrl;
-
-        // Убираем активный класс у всех миниатюр
-        document.querySelectorAll('.img-thumbnail').forEach(thumb => {
-            thumb.classList.remove('active');
-        });
-
-        // Добавляем активный класс к выбранной миниатюре
-        element.classList.add('active');
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        // Инициализация tooltips
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl)
-        });
-    });
-</script>
 {% endblock %}

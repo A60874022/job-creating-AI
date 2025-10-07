@@ -1,5 +1,5 @@
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.views.generic import CreateView, UpdateView, ListView
+from django.views.generic import CreateView, UpdateView, ListView, DeleteView
 from django.urls import reverse_lazy
 from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
@@ -11,7 +11,7 @@ class ProductCreateView(LoginRequiredMixin, CreateView):
     model = Product
     form_class = ProductForm
     template_name = 'products/product_form.html'
-    success_url = reverse_lazy('my_products')
+    success_url = reverse_lazy('products:my_products')
     
     def form_valid(self, form):
         # Привязываем товар к текущему пользователю (мастеру)
@@ -42,7 +42,7 @@ class ProductUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     model = Product
     form_class = ProductForm
     template_name = 'products/product_form.html'
-    success_url = reverse_lazy('my_products')
+    success_url = reverse_lazy('products:my_products')
     
     def test_func(self):
         # Проверяем, что пользователь является владельцем товара
@@ -63,6 +63,21 @@ class ProductUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         else:
             context['formset'] = ProductImageFormSet(instance=self.object)
         return context
+
+
+
+class ProductDeleteView(LoginRequiredMixin, DeleteView):
+    model = Product
+    success_url = reverse_lazy('products:my_products')
+    template_name = 'products/product_confirm_delete.html'
+    
+    def get_queryset(self):
+        """Ограничиваем удаление только своими товарами"""
+        return Product.objects.filter(master=self.request.user)
+    
+    def delete(self, request, *args, **kwargs):
+        messages.success(request, 'Товар успешно удален!')
+        return super().delete(request, *args, **kwargs)
 
 class ProductListView(LoginRequiredMixin, ListView):
     model = Product
@@ -181,4 +196,4 @@ def remove_from_favorites(request, favorite_id):
     
     messages.success(request, f'Товар "{product_title}" удален из избранного')
     # Корректный редирект с параметрами
-    return redirect(f"{reverse('customer_profile')}?tab=favorites")
+    return redirect(f"{reverse('products:customer_profile')}?tab=favorites")

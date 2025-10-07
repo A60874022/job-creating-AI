@@ -137,7 +137,7 @@
                         <h3 class="fw-bold mb-3">У вас пока нет заказов</h3>
                         <p class="text-muted mb-4">Найдите интересные товары в нашем каталоге и сделайте свой первый
                             заказ</p>
-                        <a href="{% url 'catalog' %}" class="btn btn-primary btn-lg px-4">
+                        <a href="{% url 'products:catalog' %}" class="btn btn-primary btn-lg px-4">
                             🛍️ Перейти в каталог
                         </a>
                     </div>
@@ -170,7 +170,7 @@
 
                                     <!-- Кнопка удаления из избранного -->
                                     <div class="position-absolute top-0 end-0 m-2">
-                                        <form method="post" action="{% url 'remove_from_favorites' favorite.id %}">
+                                        <form method="post" action="{% url 'products:remove_from_favorites' favorite.id %}">
                                             {% csrf_token %}
                                             <button type="submit" class="btn btn-danger btn-sm" data-bs-toggle="tooltip"
                                                 title="Удалить из избранного">
@@ -217,11 +217,11 @@
                                             </small>
                                         </div>
                                         <div class="d-grid gap-2">
-                                            <a href="{% url 'product_detail' favorite.product.pk %}"
+                                            <a href="{% url 'products:product_detail' favorite.product.pk %}"
                                                 class="btn btn-outline-primary btn-sm">
                                                 👀 Подробнее
                                             </a>
-                                            <form method="post" action="{% url 'create_order' favorite.product.id %}">
+                                            <form method="post" action="{% url 'orders:add_to_cart' favorite.product.id %}">
                                                 {% csrf_token %}
                                                 <button type="submit" class="btn btn-primary w-100">
                                                     🛒 В заказ
@@ -239,7 +239,7 @@
                         <div class="mb-4" style="font-size: 4rem;">❤️</div>
                         <h3 class="fw-bold mb-3">В избранном пусто</h3>
                         <p class="text-muted mb-4">Добавляйте понравившиеся товары в избранное, чтобы не потерять</p>
-                        <a href="{% url 'catalog' %}" class="btn btn-primary btn-lg px-4">
+                        <a href="{% url 'products:catalog' %}" class="btn btn-primary btn-lg px-4">
                             🛍️ Перейти в каталог
                         </a>
                     </div>

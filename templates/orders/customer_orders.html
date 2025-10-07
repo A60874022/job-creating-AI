@@ -12,6 +12,9 @@
                     <h1 class="fw-bold mb-2">📦 Мои заказы</h1>
                     <p class="text-muted">История ваших заказов handmade-товаров</p>
                 </div>
+                <a href="{% url 'orders:cart_view' %}" class="btn btn-primary">
+                    🛒 Корзина
+                </a>
             </div>
 
             {% if orders %}
@@ -24,14 +27,18 @@
                                 <h5 class="fw-bold mb-1">Заказ #{{ order.id }}</h5>
                                 <small class="text-muted">Создан: {{ order.created_at|date:"d.m.Y H:i" }}</small>
                             </div>
-                            <div>
+                            <div class="text-end">
                                 <span class="badge 
                                         {% if order.status == 'оформлен' %}bg-primary
                                         {% elif order.status == 'в_работе' %}bg-warning
-                                        {% elif order.status == 'отправлен' %}bg-success
+                                        {% elif order.status == 'отправлен' %}bg-info
+                                        {% elif order.status == 'доставлен' %}bg-success
                                         {% else %}bg-secondary{% endif %} fs-6">
                                     {{ order.get_status_display }}
                                 </span>
+                                <div class="mt-1">
+                                    <strong class="text-brown">{{ order.total_amount }} ₽</strong>
+                                </div>
                             </div>
                         </div>
                         <div class="card-body">
@@ -59,28 +66,21 @@
                                     <span class="fw-bold">×{{ item.quantity }}</span>
                                 </div>
                                 <div class="col-md-2 text-end">
-                                    <span class="fw-bold text-brown">{{ item.price_at_moment }} ₽</span>
+                                    <span class="fw-bold text-brown">{{ item.total_price }} ₽</span>
+                                    <div class="text-muted small">за шт: {{ item.price_at_moment }} ₽</div>
                                 </div>
                             </div>
                             {% endfor %}
-
-                            <div class="row mt-3">
-                                <div class="col-12 text-end">
-                                    <h5 class="fw-bold text-brown">
-                                        Итого: {{ order.items.count }} товар(а) на
-                                        {{ order.get_total_cost }} ₽
-                                    </h5>
-                                </div>
-                            </div>
                         </div>
                         <div class="card-footer bg-white">
                             <div class="d-flex justify-content-between align-items-center">
                                 <small class="text-muted">
                                     Обновлен: {{ order.updated_at|date:"d.m.Y H:i" }}
                                 </small>
-                                <button class="btn btn-outline-primary btn-sm">
+                                <a href="mailto:{{ order.items.first.product.master.email }}"
+                                    class="btn btn-outline-primary btn-sm">
                                     💬 Написать мастеру
-                                </button>
+                                </a>
                             </div>
                         </div>
                     </div>

@@ -96,7 +96,7 @@
 
                 <!-- Основная навигация -->
                 <div class="navbar-nav mx-auto">
-                    <a class="nav-link" href="{% url 'catalog' %}">🛍️ Каталог</a>
+                    <a class="nav-link" href="{% url 'products:catalog' %}">🛍️ Каталог</a>
                 </div>
 
                 <div class="navbar-nav ms-auto">
@@ -109,23 +109,23 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             {% if user.is_master %}
-                            <li><a class="dropdown-item" href="{% url 'my_products' %}">🛍️ Мои товары</a></li>
-                            <li><a class="dropdown-item" href="{% url 'product_add' %}">🎨 Добавить товар</a></li>
+                            <li><a class="dropdown-item" href="{% url 'products:my_products' %}">🛍️ Мои товары</a></li>
+                            <li><a class="dropdown-item" href="{% url 'products:product_add' %}">🎨 Добавить товар</a></li>
                             {% else %}
-                            <li><a class="dropdown-item" href="{% url 'customer_profile' %}?tab=orders">📦 Мои
+                            <li><a class="dropdown-item" href="{% url 'products:customer_profile' %}?tab=orders">📦 Мои
                                     заказы</a></li>
-                            <li><a class="dropdown-item" href="{% url 'customer_profile' %}?tab=favorites">❤️
+                            <li><a class="dropdown-item" href="{% url 'products:customer_profile' %}?tab=favorites">❤️
                                     Избранное</a></li>
-                            <li><a class="dropdown-item" href="{% url 'customer_profile' %}?tab=dialogs">💬 Диалоги</a>
+                            <li><a class="dropdown-item" href="{% url 'products:customer_profile' %}?tab=dialogs">💬 Диалоги</a>
                             </li>
                             {% endif %}
-                            <li><a class="dropdown-item" href="{% url 'edit_profile' %}">👤 Мой профиль</a></li>
+                            <li><a class="dropdown-item" href="{% url 'users:edit_profile' %}">👤 Мой профиль</a></li>
                             <li>
                                 <hr class="dropdown-divider">
                             </li>
                             <!-- Форма для выхода -->
                             <li>
-                                <form method="post" action="{% url 'logout' %}" class="logout-form">
+                                <form method="post" action="{% url 'users:logout' %}" class="logout-form">
                                     {% csrf_token %}
                                     <button type="submit" class="logout-btn">🚪 Выйти</button>
                                 </form>
@@ -134,8 +134,8 @@
                     </div>
                     {% else %}
                     <!-- Кнопки для неавторизованных пользователей -->
-                    <a class="btn btn-outline-primary me-2" href="{% url 'login' %}">Войти</a>
-                    <a class="btn btn-primary" href="{% url 'register' %}">Зарегистрироваться</a>
+                    <a class="btn btn-outline-primary me-2" href="{% url 'users:login' %}">Войти</a>
+                    <a class="btn btn-primary" href="{% url 'users:register' %}">Зарегистрироваться</a>
                     {% endif %}
                 </div>
             </div>

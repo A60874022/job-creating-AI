@@ -11,7 +11,7 @@
             <h1 class="fw-bold mb-2">🛍️ Мои товары</h1>
             <p class="text-muted">Управляйте вашими handmade-товарами</p>
         </div>
-        <a href="{% url 'product_add' %}" class="btn btn-primary btn-lg px-4">
+        <a href="{% url 'products:product_add' %}" class="btn btn-primary btn-lg px-4">
             ➕ Добавить товар
         </a>
     </div>
@@ -62,13 +62,23 @@
                             {% endif %}
                         </div>
 
+                        <!-- Обновленный блок кнопок с удалением -->
                         <div class="d-flex gap-2 flex-wrap">
-                            <a href="{% url 'product_edit' product.pk %}"
+                            <!-- Кнопка редактирования -->
+                            <a href="{% url 'products:product_edit' product.pk %}"
                                 class="btn btn-outline-primary btn-sm flex-fill">
                                 ✏️ Редактировать
                             </a>
+
+                            <!-- Кнопка удаления с модальным окном -->
+                            <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
+                                data-bs-target="#deleteModal{{ product.id }}" title="Удалить товар">
+                                🗑️
+                            </button>
+
+                            <!-- Кнопка информации об изображениях -->
                             <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="tooltip"
-                                title="Кол-во изображений">
+                                title="Кол-во изображений: {{ product.images.count }}">
                                 🖼️ {{ product.images.count }}
                             </button>
                         </div>
@@ -83,6 +93,54 @@
                 </div>
             </div>
         </div>
+
+        <!-- Модальное окно подтверждения удаления -->
+        <div class="modal fade" id="deleteModal{{ product.id }}" tabindex="-1"
+            aria-labelledby="deleteModalLabel{{ product.id }}" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-0">
+                        <h5 class="modal-title fw-bold" id="deleteModalLabel{{ product.id }}">
+                            🗑️ Удаление товара
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-center py-4">
+                        <div class="mb-4" style="font-size: 3rem;">⚠️</div>
+                        <h6 class="fw-bold mb-3">Вы уверены, что хотите удалить товар?</h6>
+
+                        <!-- Информация о товаре -->
+                        <div class="card border-0 bg-light mb-3">
+                            <div class="card-body py-3">
+                                <h6 class="fw-bold mb-1">{{ product.title }}</h6>
+                                <p class="text-muted small mb-2">{{ product.description|truncatewords:10 }}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="fw-bold text-brown">{{ product.price }} ₽</span>
+                                    {% if product.category %}
+                                    <span class="badge bg-brown">{{ product.category.name }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="text-danger small mb-0">
+                            ❗ Это действие нельзя отменить. Все данные о товаре будут удалены.
+                        </p>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-center">
+                        <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
+                            ❌ Отмена
+                        </button>
+                        <form method="post" action="{% url 'products:product_delete' product.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-danger px-4">
+                                ✅ Удалить
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
         {% endfor %}
     </div>
     {% else %}
@@ -91,7 +149,7 @@
         <div class="mb-4" style="font-size: 4rem;">🎁</div>
         <h3 class="fw-bold mb-3">У вас пока нет товаров</h3>
         <p class="text-muted mb-4">Добавьте свой первый handmade-товар и начните продавать</p>
-        <a href="{% url 'product_add' %}" class="btn btn-primary btn-lg px-4">
+        <a href="{% url 'products:product_add' %}" class="btn btn-primary btn-lg px-4">
             🎨 Добавить первый товар
         </a>
     </div>
@@ -101,6 +159,10 @@
 <style>
     .text-brown {
         color: #8B4513;
+    }
+
+    .bg-brown {
+        background-color: #8B4513 !important;
     }
 
     .product-card {
@@ -140,8 +202,29 @@
         color: white;
     }
 
+    .btn-outline-danger {
+        color: #dc3545;
+        border-color: #dc3545;
+        border-radius: 8px;
+    }
+
+    .btn-outline-danger:hover {
+        background-color: #dc3545;
+        color: white;
+    }
+
     .badge.bg-light {
         border: 1px solid #8B4513 !important;
+    }
+
+    .modal-content {
+        border-radius: 15px;
+        border: none;
+    }
+
+    .modal-header {
+        background-color: #f8f9fa;
+        border-radius: 15px 15px 0 0;
     }
 </style>
 
@@ -152,6 +235,20 @@
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl)
         })
+    });
+
+    // Автоматическое закрытие модальных окон после удаления
+    document.addEventListener('DOMContentLoaded', function () {
+        // Закрываем все модальные окна при отправке формы удаления
+        document.querySelectorAll('form[action*="product_delete"]').forEach(function (form) {
+            form.addEventListener('submit', function () {
+                var modalId = this.closest('.modal').id;
+                var modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
+                if (modal) {
+                    modal.hide();
+                }
+            });
+        });
     });
 </script>
 {% endblock %}

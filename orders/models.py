@@ -1,64 +1,77 @@
 from django.db import models
-from django.conf import settings
+from django.contrib.auth import get_user_model
 from products.models import Product
+from django.utils import timezone
+
+User = get_user_model()
+
+class Cart(models.Model):
+    """Корзина покупок"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='cart')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Корзина {self.user.email}'
+
+    @property
+    def total_price(self):
+        return sum(item.total_price for item in self.items.all())
+
+    @property
+    def total_quantity(self):
+        return sum(item.quantity for item in self.items.all())
+
+class CartItem(models.Model):
+    """Элемент корзины"""
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(default=1)
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['cart', 'product']
+
+    def __str__(self):
+        return f'{self.product.title} x {self.quantity}'
+
+    @property
+    def total_price(self):
+        return self.product.price * self.quantity
 
 class Order(models.Model):
+    """Заказ"""
     STATUS_CHOICES = [
         ('оформлен', 'Оформлен'),
         ('в_работе', 'В работе'),
         ('отправлен', 'Отправлен'),
+        ('доставлен', 'Доставлен'),
+        ('отменен', 'Отменен'),
     ]
-    
-    customer = models.ForeignKey(
-        settings.AUTH_USER_MODEL, 
-        on_delete=models.CASCADE, 
-        related_name='orders',
-        verbose_name="Покупатель"
-    )
-    status = models.CharField(
-        max_length=20, 
-        choices=STATUS_CHOICES, 
-        default='оформлен',
-        verbose_name="Статус"
-    )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
-    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
-    
-    class Meta:
-        verbose_name = "Заказ"
-        verbose_name_plural = "Заказы"
-        ordering = ['-created_at']
-    
+
+    customer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='оформлен')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     def __str__(self):
-        return f"Заказ #{self.id} - {self.customer.email}"
+        return f'Заказ #{self.id} - {self.customer.email}'
+
+    def update_total_amount(self):
+        self.total_amount = sum(item.total_price for item in self.items.all())
+        self.save()
 
 class OrderItem(models.Model):
-    order = models.ForeignKey(
-        Order, 
-        on_delete=models.CASCADE, 
-        related_name='items'
-    )
-    product = models.ForeignKey(
-        Product, 
-        on_delete=models.CASCADE,
-        verbose_name="Товар"
-    )
-    quantity = models.PositiveIntegerField(default=1, verbose_name="Количество")
-    price_at_moment = models.DecimalField(
-        max_digits=10, 
-        decimal_places=2, 
-        verbose_name="Цена на момент заказа"
-    )
-    
-    class Meta:
-        verbose_name = "Элемент заказа"
-        verbose_name_plural = "Элементы заказа"
-    
+    """Элемент заказа"""
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(default=1)
+    price_at_moment = models.DecimalField(max_digits=10, decimal_places=2)
+
     def __str__(self):
-        return f"{self.product.title} x {self.quantity}"
-    
-    def save(self, *args, **kwargs):
-        # Фиксируем цену товара на момент заказа
-        if not self.price_at_moment:
-            self.price_at_moment = self.product.price
-        super().save(*args, **kwargs)
+        return f'{self.product.title} x {self.quantity}'
+
+    @property
+    def total_price(self):
+        return self.price_at_moment * self.quantity

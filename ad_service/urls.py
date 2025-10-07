@@ -25,7 +25,7 @@ from django.views.generic import RedirectView
 
 urlpatterns = [
     path('admin/', admin.site.urls),  # Добавляем админ-панель
-    path('', RedirectView.as_view(pattern_name='catalog'), name='home'),
+    path('', RedirectView.as_view(pattern_name='products:catalog'), name='home'),
     path('catalog/', include('products.urls')),
     path('orders/', include('orders.urls')),
     path('users/', include('users.urls')),

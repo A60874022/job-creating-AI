@@ -47,7 +47,7 @@
                 Запомнить меня
             </label>
         </div>
-        <a href="{% url 'password_reset' %}" class="text-decoration-none">Забыли пароль?</a>
+        <a href="{% url 'users:password_reset' %}" class="text-decoration-none">Забыли пароль?</a>
     </div>
 
     <!-- Кнопка входа -->
@@ -58,7 +58,7 @@
     <!-- Ссылка на регистрацию -->
     <div class="text-center">
         <span class="text-muted">Нет аккаунта?</span>
-        <a href="{% url 'register' %}" class="text-decoration-none">Зарегистрироваться</a>
+        <a href="{% url 'users:register' %}" class="text-decoration-none">Зарегистрироваться</a>
     </div>
 </form>
 {% endblock %}
