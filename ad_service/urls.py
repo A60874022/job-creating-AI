@@ -29,7 +29,8 @@ urlpatterns = [
     path('catalog/', include('products.urls')),
     path('orders/', include('orders.urls')),
     path('users/', include('users.urls')),
-    path('chat/', include('chat.urls'))
+    path('chat/', include('chat.urls')),
+    path('notifications/', include('notifications.urls', namespace='notifications'))
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

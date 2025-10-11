@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Заказы мастера | HandmadeMarket{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="fw-bold mb-2">📦 Заказы на мои товары</h1>
+                    <p class="text-muted">Заказы покупателей на ваши handmade-товары</p>
+                </div>
+                <a href="{% url 'notifications:notification_list' %}" class="btn btn-primary">
+                    🔔 Уведомления
+                </a>
+            </div>
+
+            {% if orders %}
+            <div class="row">
+                {% for order in orders %}
+                <div class="col-12 mb-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="fw-bold mb-1">Заказ #{{ order.id }}</h5>
+                                <small class="text-muted">Покупатель: {{ order.customer.email }}</small>
+                                <br>
+                                <small class="text-muted">Создан: {{ order.created_at|date:"d.m.Y H:i" }}</small>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge 
+                                        {% if order.status == 'оформлен' %}bg-primary
+                                        {% elif order.status == 'в_работе' %}bg-warning
+                                        {% elif order.status == 'отправлен' %}bg-info
+                                        {% elif order.status == 'доставлен' %}bg-success
+                                        {% else %}bg-secondary{% endif %} fs-6">
+                                    {{ order.get_status_display }}
+                                </span>
+                                <div class="mt-1">
+                                    <strong class="text-brown">{{ order.total_amount }} ₽</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="fw-bold">Мои товары в заказе:</h6>
+                            {% for item in order.items.all %}
+                            {% if item.product.master == request.user %}
+                            <div
+                                class="row align-items-center mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
+                                <div class="col-md-2">
+                                    {% if item.product.images.all %}
+                                    <img src="{{ item.product.images.first.image.url }}" class="img-fluid rounded"
+                                        alt="{{ item.product.title }}"
+                                        style="width: 80px; height: 80px; object-fit: cover;">
+                                    {% else %}
+                                    <div class="bg-light rounded d-flex align-items-center justify-content-center"
+                                        style="width: 80px; height: 80px;">
+                                        <span class="text-muted">🎨</span>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="fw-bold mb-1">{{ item.product.title }}</h6>
+                                    <p class="text-muted small mb-1">{{ item.product.description|truncatewords:10 }}</p>
+                                    <small class="text-muted">Количество: {{ item.quantity }}</small>
+                                </div>
+                                <div class="col-md-2 text-center">
+                                    <span class="fw-bold">×{{ item.quantity }}</span>
+                                </div>
+                                <div class="col-md-2 text-end">
+                                    <span class="fw-bold text-brown">{{ item.total_price }} ₽</span>
+                                    <div class="text-muted small">за шт: {{ item.price_at_moment }} ₽</div>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        <div class="card-footer bg-white">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    Обновлен: {{ order.updated_at|date:"d.m.Y H:i" }}
+                                </small>
+                                <a href="mailto:{{ order.customer.email }}" class="btn btn-outline-primary btn-sm">
+                                    💬 Написать покупателю
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <div class="mb-4" style="font-size: 4rem;">📦</div>
+                <h3 class="fw-bold mb-3">Заказов пока нет</h3>
+                <p class="text-muted mb-4">Когда покупатели будут заказывать ваши товары, здесь появятся заказы</p>
+                <a href="{% url 'products:product_add' %}" class="btn btn-primary btn-lg px-4">
+                    🎨 Добавить больше товаров
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

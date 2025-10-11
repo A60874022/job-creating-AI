@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Уведомления | HandmadeMarket{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="fw-bold mb-2">🔔 Уведомления</h1>
+                    <p class="text-muted">Все уведомления о вашей активности на платформе</p>
+                </div>
+                <div>
+                    {% if unread_notifications_count > 0 %}
+                    <form method="post" action="{% url 'notifications:mark_all_read' %}" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-primary me-2">
+                            📪 Прочитать все
+                        </button>
+                    </form>
+                    {% endif %}
+
+                    {% if user.is_master %}
+                    <a href="{% url 'orders:master_orders' %}" class="btn btn-primary">
+                        📦 Мои заказы
+                    </a>
+                    {% else %}
+                    <a href="{% url 'orders:customer_orders' %}" class="btn btn-primary">
+                        📦 Мои заказы
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if notifications %}
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    {% for notification in notifications %}
+                    <div
+                        class="p-4 {% if not notification.is_read %}bg-light border-start border-primary border-3{% endif %} {% if not forloop.last %}border-bottom{% endif %}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1 me-3">
+                                <div class="d-flex align-items-center mb-2">
+                                    <h6 class="fw-bold mb-0 me-2">{{ notification.title }}</h6>
+                                    {% if not notification.is_read %}
+                                    <span class="badge bg-primary">Новое</span>
+                                    {% endif %}
+                                </div>
+                                <p class="mb-2 text-muted">{{ notification.message }}</p>
+
+                                {% if notification.action_url %}
+                                <div class="mt-2">
+                                    <a href="{{ notification.action_url }}" class="btn btn-outline-primary btn-sm">
+                                        📋 Перейти
+                                    </a>
+
+                                    {% if not notification.is_read %}
+                                    <form method="post" action="{% url 'notifications:mark_as_read' notification.id %}"
+                                        class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-outline-secondary btn-sm ms-1">
+                                            ✓ Прочитано
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+
+                                <small class="text-muted">{{ notification.created_at|date:"d.m.Y H:i" }}</small>
+                            </div>
+
+                            <div class="text-end">
+                                <span class="badge 
+                                    {% if notification.notification_type == 'new_order' %}bg-success
+                                    {% elif notification.notification_type == 'new_message' %}bg-info
+                                    {% elif notification.notification_type == 'order_status_changed' %}bg-warning
+                                    {% else %}bg-secondary{% endif %}">
+                                    {{ notification.get_notification_type_display }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Пагинация можно добавить позже -->
+            {% else %}
+            <div class="text-center py-5">
+                <div class="mb-4" style="font-size: 4rem;">🔔</div>
+                <h3 class="fw-bold mb-3">Уведомлений нет</h3>
+                <p class="text-muted mb-4">Здесь будут появляться уведомления о новых заказах, сообщениях и другой
+                    активности</p>
+
+                {% if user.is_master %}
+                <a href="{% url 'products:product_add' %}" class="btn btn-primary btn-lg px-4">
+                    🎨 Добавить товары
+                </a>
+                {% else %}
+                <a href="{% url 'products:catalog' %}" class="btn btn-primary btn-lg px-4">
+                    🛍️ Перейти в каталог
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .btn-primary {
+        background-color: #8B4513;
+        border-color: #8B4513;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .btn-primary:hover {
+        background-color: #654321;
+        border-color: #654321;
+    }
+
+    .bg-light {
+        background-color: #f8f9fa !important;
+    }
+</style>
+{% endblock %}

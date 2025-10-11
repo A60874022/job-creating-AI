@@ -78,12 +78,18 @@ def remove_from_cart(request, item_id):
     messages.success(request, f'Товар "{product_title}" удален из корзины')
     return redirect('orders:cart_view')
 
+from notifications.services import NotificationService
+
 @login_required
 @transaction.atomic
 def create_order(request):
     """Создание заказа из корзины"""
+    print(f"=== DEBUG: Начало создания заказа для пользователя {request.user.email} ===")
+    
     cart = get_object_or_404(Cart, user=request.user)
     cart_items = cart.items.select_related('product').all()
+    
+    print(f"DEBUG: Найдено товаров в корзине: {cart_items.count()}")
     
     if not cart_items:
         messages.error(request, 'Ваша корзина пуста')
@@ -91,38 +97,105 @@ def create_order(request):
     
     # Проверяем, что все товары еще активны
     for item in cart_items:
+        print(f"DEBUG: Проверка товара: {item.product.title}, тип: {type(item.product)}, ID: {item.product.id}")
         if not item.product.is_active:
             messages.error(request, f'Товар "{item.product.title}" больше не доступен')
             return redirect('orders:cart_view')
     
-    # Создаем заказ
-    order = Order.objects.create(customer=request.user, status='оформлен')
+    try:
+        # Создаем заказ
+        print("DEBUG: Создаем объект Order...")
+        order = Order.objects.create(customer=request.user, status='оформлен')
+        print(f"DEBUG: Создан заказ ID: {order.id}")
+        
+        # Создаем элементы заказа
+        total_amount = 0
+        masters_notified = set()
+        
+        for cart_item in cart_items:
+            print(f"DEBUG: Обрабатываем CartItem: {cart_item.product.title}")
+            print(f"DEBUG: Тип cart_item.product: {type(cart_item.product)}")
+            print(f"DEBUG: cart_item.product.__class__: {cart_item.product.__class__}")
+            print(f"DEBUG: cart_item.product.id: {cart_item.product.id}")
+            
+            # Создаем элемент заказа
+            print("DEBUG: Создаем OrderItem...")
+            order_item = OrderItem.objects.create(
+                order=order,
+                product=cart_item.product,  # Это должен быть объект Product
+                quantity=cart_item.quantity,
+                price_at_moment=cart_item.product.price
+            )
+            print(f"DEBUG: Создан OrderItem ID: {order_item.id}")
+            
+            total_amount += cart_item.product.price * cart_item.quantity
+            
+            # Создаем уведомление для мастера
+            master = cart_item.product.master
+            print(f"DEBUG: Мастер товара: {master.email}, тип: {type(master)}")
+            
+            if master.id not in masters_notified:
+                print(f"DEBUG: Вызываем NotificationService для мастера {master.email}")
+                NotificationService.create_order_notification(order, master)
+                masters_notified.add(master.id)
+        
+        # Обновляем общую сумму заказа
+        order.total_amount = total_amount
+        order.save()
+        
+        # Очищаем корзину
+        cart.items.all().delete()
+        
+        print(f"DEBUG: Заказ успешно создан! ID: {order.id}, Сумма: {total_amount}")
+        messages.success(request, f'Заказ #{order.id} успешно оформлен! Сумма: {total_amount} ₽')
+        return redirect('orders:customer_orders')
     
-    # Создаем элементы заказа
-    total_amount = 0
-    for cart_item in cart_items:
-        OrderItem.objects.create(
-            order=order,
-            product=cart_item.product,
-            quantity=cart_item.quantity,
-            price_at_moment=cart_item.product.price
-        )
-        total_amount += cart_item.product.price * cart_item.quantity
-    
-    # Обновляем общую сумму заказа
-    order.total_amount = total_amount
-    order.save()
-    
-    # Очищаем корзину
-    cart.items.all().delete()
-    
-    messages.success(request, f'Заказ #{order.id} успешно оформлен! Сумма: {total_amount} ₽')
-    return redirect('customer_orders')
+    except Exception as e:
+        print(f"=== DEBUG: ОШИБКА ПРИ СОЗДАНИИ ЗАКАЗА ===")
+        print(f"Тип ошибки: {type(e)}")
+        print(f"Сообщение ошибки: {str(e)}")
+        import traceback
+        print("Трассировка:")
+        traceback.print_exc()
+        print("==========================================")
+        
+        messages.error(request, f'Ошибка при создании заказа: {str(e)}')
+        return redirect('orders:cart_view')
 
 @login_required
 def customer_orders(request):
     """Страница заказов покупателя"""
-    orders = Order.objects.filter(customer=request.user).prefetch_related(
-        'items__product__images'
-    ).order_by('-created_at')
-    return render(request, 'orders/customer_orders.html', {'orders': orders})
+    try:
+        orders = Order.objects.filter(customer=request.user).prefetch_related(
+            'items__product__images',
+            'items__product__master'
+        ).order_by('-created_at')
+    except Exception as e:
+        print(f"Error loading orders: {e}")
+        orders = []
+    
+    context = {
+        'orders': orders
+    }
+    return render(request, 'orders/customer_orders.html', context)
+
+# orders/views.py (добавьте эту функцию)
+@login_required
+def master_orders(request):
+    """Страница заказов для мастера"""
+    try:
+        # Заказы, где есть товары этого мастера
+        orders = Order.objects.filter(
+            items__product__master=request.user
+        ).distinct().prefetch_related(
+            'items__product__images',
+            'customer'
+        ).order_by('-created_at')
+    except Exception as e:
+        print(f"Error loading master orders: {e}")
+        orders = []
+    
+    context = {
+        'orders': orders
+    }
+    return render(request, 'orders/master_orders.html', context)
