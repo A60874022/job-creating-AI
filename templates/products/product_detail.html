@@ -58,25 +58,53 @@
 
                     <!-- Информация о мастере -->
                     <div class="mb-4 p-3 bg-light rounded">
-                        <div class="d-flex align-items-center">
-                            {% if product.master.profile.avatar %}
-                            <img src="{{ product.master.profile.avatar.url }}" class="rounded-circle me-3"
-                                alt="Аватар {{ product.master.email }}"
-                                style="width: 50px; height: 50px; object-fit: cover;">
-                            {% else %}
-                            <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3"
-                                style="width: 50px; height: 50px;">
-                                <span class="text-white">👤</span>
-                            </div>
-                            {% endif %}
-                            <div>
-                                <h6 class="fw-bold mb-1">Мастер</h6>
-                                <p class="text-muted mb-0">{{ product.master.email }}</p>
-                                {% if product.master.profile.city %}
-                                <small class="text-muted">📍 {{ product.master.profile.city }}</small>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center">
+                                {% if product.master.profile.avatar %}
+                                <img src="{{ product.master.profile.avatar.url }}" class="rounded-circle me-3"
+                                    alt="Аватар {{ product.master.email }}"
+                                    style="width: 50px; height: 50px; object-fit: cover;">
+                                {% else %}
+                                <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3"
+                                    style="width: 50px; height: 50px;">
+                                    <span class="text-white">👤</span>
+                                </div>
                                 {% endif %}
+                                <div>
+                                    <h6 class="fw-bold mb-1">Мастер</h6>
+                                    <p class="text-muted mb-0">{{
+                                        product.master.get_full_name|default:product.master.email }}</p>
+                                    {% if product.master.profile.city %}
+                                    <small class="text-muted">📍 {{ product.master.profile.city }}</small>
+                                    {% endif %}
+                                </div>
                             </div>
+
+                            <!-- Кнопка "Написать мастеру" -->
+                            {% if user.is_authenticated and user != product.master %}
+                            <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
+                                class="btn btn-outline-primary btn-sm" title="Начать диалог с мастером">
+                                💬 Написать
+                            </a>
+                            {% elif not user.is_authenticated %}
+                            <a href="{% url 'users:login' %}?next={{ request.path }}"
+                                class="btn btn-outline-primary btn-sm" title="Войдите, чтобы написать мастеру">
+                                💬 Написать
+                            </a>
+                            {% endif %}
                         </div>
+
+                        <!-- Рейтинг мастера (если есть) -->
+                        {% if product.master.profile.rating %}
+                        <div class="mt-2">
+                            <small class="text-warning">
+                                {% with rating=product.master.profile.rating %}
+                                {% for i in "12345" %}
+                                {% if forloop.counter <= rating %}⭐{% else %}☆{% endif %} {% endfor %} {% endwith %}
+                                    <span class="text-muted ms-1">({{ product.master.profile.rating }})</span>
+                            </small>
+                        </div>
+                        {% endif %}
                     </div>
 
                     <!-- Категория -->
@@ -139,21 +167,82 @@
                         </form>
                         {% endif %}
                         {% else %}
-                        <a href="{% url 'login' %}" class="btn btn-outline-secondary btn-lg ms-2"
-                            title="Войдите, чтобы добавить в избранное">
+                        <a href="{% url 'users:login' %}?next={{ request.path }}"
+                            class="btn btn-outline-secondary btn-lg ms-2" title="Войдите, чтобы добавить в избранное">
                             🤍
                         </a>
                         {% endif %}
                     </div>
 
-                    <!-- Быстрые ссылки -->
+                    <!-- Дополнительные кнопки -->
                     <div class="d-grid gap-2">
+                        <!-- Основная кнопка "Написать мастеру" для мобильных -->
+                        {% if user.is_authenticated and user != product.master %}
+                        <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
+                            class="btn btn-outline-brown btn-lg">
+                            💬 Написать мастеру
+                        </a>
+                        {% elif not user.is_authenticated %}
+                        <a href="{% url 'users:login' %}?next={{ request.path }}" class="btn btn-outline-brown btn-lg">
+                            💬 Написать мастеру
+                        </a>
+                        {% endif %}
+
                         <a href="{% url 'orders:cart_view' %}" class="btn btn-outline-brown">
                             📦 Перейти в корзину
                         </a>
-                        <a href="{% url 'products:catalog' %}" class="btn btn-outline-secondary">>
+                        <a href="{% url 'products:catalog' %}" class="btn btn-outline-secondary">
                             ← Вернуться в каталог
                         </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Блок "О мастере" -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h4 class="fw-bold mb-4">🎨 О мастере</h4>
+                    <div class="row">
+                        <div class="col-md-8">
+                            {% if product.master.profile.bio %}
+                            <p class="text-muted mb-3">{{ product.master.profile.bio }}</p>
+                            {% else %}
+                            <p class="text-muted mb-3">Мастер пока не добавил информацию о себе</p>
+                            {% endif %}
+
+                            <div class="d-flex flex-wrap gap-3">
+                                {% if product.master.profile.city %}
+                                <span class="badge bg-light text-dark">
+                                    📍 {{ product.master.profile.city }}
+                                </span>
+                                {% endif %}
+                                <span class="badge bg-light text-dark">
+                                    🎨 {{ product.master.products.count }} товаров
+                                </span>
+                                {% if product.master.date_joined %}
+                                <span class="badge bg-light text-dark">
+                                    📅 На сайте с {{ product.master.date_joined|date:"Y" }} года
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-md-end">
+                            {% if user.is_authenticated and user != product.master %}
+                            <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
+                                class="btn btn-primary btn-lg mt-3">
+                                💬 Начать диалог
+                            </a>
+                            {% elif not user.is_authenticated %}
+                            <a href="{% url 'users:login' %}?next={{ request.path }}"
+                                class="btn btn-primary btn-lg mt-3">
+                                💬 Начать диалог
+                            </a>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -163,11 +252,12 @@
     <!-- Похожие товары -->
     <div class="row mt-5">
         <div class="col-12">
-            <h3 class="fw-bold mb-4">Похожие товары</h3>
+            <h3 class="fw-bold mb-4">Другие товары мастера</h3>
             <div class="row">
-                <!-- Здесь можно добавить похожие товары из той же категории -->
+                <!-- Здесь можно добавить другие товары этого мастера -->
                 <div class="col-12 text-center py-4">
-                    <p class="text-muted">Здесь будут показаны похожие товары</p>
+                    <p class="text-muted">Здесь будут показаны другие товары мастера {{
+                        product.master.get_full_name|default:product.master.email }}</p>
                 </div>
             </div>
         </div>
@@ -211,6 +301,16 @@
     .carousel-control-prev,
     .carousel-control-next {
         width: 5%;
+    }
+
+    /* Анимация для кнопок */
+    .btn {
+        transition: all 0.3s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(139, 69, 19, 0.2);
     }
 </style>
 {% endblock %}

@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}
+Чат с {% if user.is_master %}{{ dialogue.customer.email }}{% else %}{{ dialogue.master.email }}{% endif %} |
+HandmadeMarket
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Заголовок чата -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <a href="{% url 'chat:dialogue_list' %}" class="btn btn-outline-secondary me-3">
+                                ← Назад к диалогам
+                            </a>
+                            <div>
+                                <h4 class="fw-bold mb-0">
+                                    💬 Чат с
+                                    {% if user.is_master %}
+                                    {{ dialogue.customer.get_full_name|default:dialogue.customer.email }}
+                                    {% else %}
+                                    {{ dialogue.master.get_full_name|default:dialogue.master.email }}
+                                    {% endif %}
+                                </h4>
+                                {% if dialogue.product %}
+                                <p class="text-muted mb-0">
+                                    Товар:
+                                    <a href="{% url 'products:product_detail' dialogue.product.id %}"
+                                        class="text-decoration-none text-brown">
+                                        {{ dialogue.product.title }}
+                                    </a>
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="d-none d-md-block">
+                            <span class="badge bg-light text-dark">
+                                💬 {{ dialogue.messages.count }} сообщений
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Основное окно чата -->
+            <div class="card border-0 shadow-sm">
+                <!-- Заголовок окна сообщений -->
+                <div class="card-header bg-white border-bottom">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 fw-bold">📨 Сообщения</h6>
+                        <small class="text-muted" id="connection-status">
+                            <span class="badge bg-secondary">⚪ Connecting...</span>
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Контейнер сообщений -->
+                <div id="chat-messages" class="card-body p-4"
+                    style="height: 60vh; overflow-y: auto; background-color: #fafafa;">
+
+                    <!-- История сообщений из БД -->
+                    {% for message in dialogue.messages.all %}
+                    <div
+                        class="message {% if message.sender == user %}message-own{% else %}message-other{% endif %} mb-4">
+                        <div class="message-header mb-1">
+                            <small
+                                class="fw-bold {% if message.sender == user %}text-primary{% else %}text-brown{% endif %}">
+                                {% if message.sender == user %}
+                                👤 Вы
+                                {% else %}
+                                {% if user.is_master %}
+                                👤 Покупатель
+                                {% else %}
+                                🎨 Мастер
+                                {% endif %}
+                                {% endif %}
+                            </small>
+                        </div>
+                        <div
+                            class="d-flex {% if message.sender == user %}justify-content-end{% else %}justify-content-start{% endif %}">
+                            <div class="message-content">
+                                <!-- Текст сообщения -->
+                                <div class="{% if message.sender == user %}bg-primary text-white{% else %}bg-light text-dark border{% endif %} 
+                                            p-3 rounded-3" style="max-width: 500px;">
+                                    {{ message.text|linebreaksbr }}
+                                </div>
+
+                                <!-- Время и статус -->
+                                <div
+                                    class="d-flex align-items-center mt-1 {% if message.sender == user %}justify-content-end{% endif %}">
+                                    <small class="text-muted me-2">
+                                        {{ message.created_at|date:"H:i" }}
+                                    </small>
+                                    {% if message.sender == user %}
+                                    <small class="text-muted">
+                                        {% if message.is_read %}✅ Прочитано{% else %}🕒 Отправлено{% endif %}
+                                    </small>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <!-- Пустой чат -->
+                    <div class="text-center py-5">
+                        <div class="mb-3" style="font-size: 4rem;">💭</div>
+                        <h5 class="text-muted">Диалог начат</h5>
+                        <p class="text-muted">Напишите первое сообщение</p>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Форма отправки сообщения -->
+                <div class="card-footer bg-white border-top">
+                    <form id="chat-form" class="d-flex gap-2 align-items-start">
+                        {% csrf_token %}
+
+                        <!-- Поле ввода -->
+                        <div class="flex-grow-1">
+                            <textarea id="message-input" class="form-control" placeholder="Введите ваше сообщение..."
+                                rows="1" maxlength="1000" style="resize: none;" required></textarea>
+                            <small class="text-muted mt-1 d-block">
+                                💡 Enter для отправки, Shift+Enter для новой строки
+                            </small>
+                        </div>
+
+                        <!-- Кнопка отправки -->
+                        <button type="submit" id="send-button" class="btn btn-primary px-4 py-2"
+                            style="min-width: 100px;">
+                            📤 Отправить
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .message-other .message-content {
+        margin-right: auto;
+    }
+
+    .message-own .message-content {
+        margin-left: auto;
+    }
+
+    .message-content {
+        max-width: 70%;
+    }
+
+    #chat-messages {
+        scroll-behavior: smooth;
+        background-image:
+            radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.05) 1px, transparent 0);
+        background-size: 20px 20px;
+    }
+
+    .text-brown {
+        color: #8B4513;
+    }
+
+    .btn-primary {
+        background-color: #8B4513;
+        border-color: #8B4513;
+    }
+
+    .btn-primary:hover {
+        background-color: #654321;
+        border-color: #654321;
+    }
+
+    /* Анимация для новых сообщений */
+    @keyframes messageSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .message-new {
+        animation: messageSlideIn 0.3s ease-out;
+    }
+
+    /* Стили для заголовков сообщений */
+    .message-header {
+        padding: 0 10px;
+    }
+
+    /* Стили для сообщений */
+    .bg-light {
+        background-color: #f8f9fa !important;
+        border-color: #e9ecef !important;
+    }
+
+    .bg-primary {
+        background-color: #8B4513 !important;
+        border-color: #8B4513 !important;
+    }
+
+    /* Адаптивность для мобильных */
+    @media (max-width: 768px) {
+        .message-content {
+            max-width: 85%;
+        }
+
+        #chat-messages {
+            height: 50vh;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block chat_scripts %}
+<script>
+    // Конфигурация
+    const dialogueId = {{ dialogue.id }};
+    const currentUserId = {{ user.id }};
+    const currentUserEmail = "{{ user.email }}";
+    const isMaster = {% if user.is_master %}true{% else %} false{% endif %};
+
+    // Элементы DOM
+    const chatMessages = document.getElementById('chat-messages');
+    const chatForm = document.getElementById('chat-form');
+    const messageInput = document.getElementById('message-input');
+    const sendButton = document.getElementById('send-button');
+    const connectionStatus = document.getElementById('connection-status');
+
+    // WebSocket соединение
+    let chatSocket = null;
+
+    function connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        chatSocket = new WebSocket(
+            `${protocol}//${window.location.host}/ws/chat/${dialogueId}/`
+        );
+
+        chatSocket.onopen = function (e) {
+            console.log('WebSocket connected');
+            updateConnectionStatus('🟢 Online', 'success');
+        };
+
+        chatSocket.onmessage = function (e) {
+            const data = JSON.parse(e.data);
+            addMessageToChat(data);
+            scrollToBottom();
+        };
+
+        chatSocket.onclose = function (e) {
+            console.log('WebSocket disconnected');
+            updateConnectionStatus('🔴 Offline', 'danger');
+
+            // Попытка переподключения через 3 секунды
+            setTimeout(() => {
+                if (chatSocket.readyState === WebSocket.CLOSED) {
+                    connectWebSocket();
+                }
+            }, 3000);
+        };
+
+        chatSocket.onerror = function (e) {
+            console.error('WebSocket error:', e);
+            updateConnectionStatus('⚠️ Connection error', 'warning');
+        };
+    }
+
+    function updateConnectionStatus(text, type) {
+        connectionStatus.innerHTML = `
+            <span class="badge bg-${type}">${text}</span>
+        `;
+    }
+
+    // Обработчик отправки формы
+    chatForm.onsubmit = function (e) {
+        e.preventDefault();
+        sendMessage();
+    };
+
+    // Автоматическое увеличение высоты textarea
+    messageInput.addEventListener('input', function () {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+
+    // Отправка сообщения по Enter (без Shift)
+    messageInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    function sendMessage() {
+        const message = messageInput.value.trim();
+
+        if (message && chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+            // Блокируем кнопку отправки
+            sendButton.disabled = true;
+            sendButton.innerHTML = '⏳';
+
+            // Отправляем через WebSocket
+            chatSocket.send(JSON.stringify({
+                'message': message,
+                'sender_id': currentUserId,
+                'dialogue_id': dialogueId
+            }));
+
+            // Очищаем поле ввода
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+
+            // Разблокируем кнопку
+            setTimeout(() => {
+                sendButton.disabled = false;
+                sendButton.innerHTML = '📤 Отправить';
+            }, 1000);
+        }
+    }
+
+    function addMessageToChat(data) {
+        const isOwn = data.sender_id == currentUserId;
+        const messageTime = formatTime(data.timestamp);
+        const senderName = isOwn ? '👤 Вы' : (isMaster ? '👤 Покупатель' : '🎨 Мастер');
+
+        const messageElement = document.createElement('div');
+        messageElement.className = `message ${isOwn ? 'message-own' : 'message-other'} mb-4 message-new`;
+        messageElement.innerHTML = `
+            <div class="message-header mb-1">
+                <small class="fw-bold ${isOwn ? 'text-primary' : 'text-brown'}">
+                    ${senderName}
+                </small>
+            </div>
+            <div class="d-flex ${isOwn ? 'justify-content-end' : 'justify-content-start'}">
+                <div class="message-content">
+                    <div class="${isOwn ? 'bg-primary text-white' : 'bg-light text-dark border'} 
+                                p-3 rounded-3" 
+                         style="max-width: 500px;">
+                        ${escapeHtml(data.message).replace(/\n/g, '<br>')}
+                    </div>
+                    <div class="d-flex align-items-center mt-1 ${isOwn ? 'justify-content-end' : ''}">
+                        <small class="text-muted me-2">${messageTime}</small>
+                        ${isOwn ? '<small class="text-muted">🕒 Отправлено</small>' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        chatMessages.appendChild(messageElement);
+        scrollToBottom();
+    }
+
+    function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function formatTime(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Автопрокрутка при загрузке
+    document.addEventListener('DOMContentLoaded', function () {
+        connectWebSocket();
+        scrollToBottom();
+
+        // Фокус на поле ввода
+        messageInput.focus();
+    });
+
+    // Обработчик видимости страницы (переподключение при возврате)
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && chatSocket && chatSocket.readyState === WebSocket.CLOSED) {
+            connectWebSocket();
+        }
+    });
+</script>
+{% endblock %}

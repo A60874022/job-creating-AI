@@ -56,92 +56,52 @@
                 <!-- Вкладка Заказы -->
                 <div class="tab-pane fade {% if active_tab == 'orders' %}show active{% endif %}" id="orders"
                     role="tabpanel">
-                    {% if orders %}
-                    <div class="row">
-                        {% for order in orders %}
-                        <div class="col-12 mb-4">
-                            <div class="card border-0 shadow-sm">
-                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h5 class="fw-bold mb-1">Заказ #{{ order.id }}</h5>
-                                        <small class="text-muted">Создан: {{ order.created_at|date:"d.m.Y H:i"
-                                            }}</small>
-                                    </div>
-                                    <div>
-                                        <span class="badge 
-                                                {% if order.status == 'оформлен' %}bg-primary
-                                                {% elif order.status == 'в_работе' %}bg-warning
-                                                {% elif order.status == 'отправлен' %}bg-success
-                                                {% else %}bg-secondary{% endif %} fs-6">
-                                            {{ order.get_status_display }}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="card-body">
-                                    {% for item in order.items.all %}
-                                    <div
-                                        class="row align-items-center mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
-                                        <div class="col-md-2">
-                                            {% if item.product.get_main_image %}
-                                            <img src="{{ item.product.get_main_image.image.url }}"
-                                                class="img-fluid rounded" alt="{{ item.product.title }}"
-                                                style="width: 80px; height: 80px; object-fit: cover;">
-                                            {% else %}
-                                            <div class="bg-light rounded d-flex align-items-center justify-content-center"
-                                                style="width: 80px; height: 80px;">
-                                                <span class="text-muted">🎨</span>
-                                            </div>
-                                            {% endif %}
-                                        </div>
-                                        <div class="col-md-6">
-                                            <h6 class="fw-bold mb-1">{{ item.product.title }}</h6>
-                                            <p class="text-muted small mb-1">{{
-                                                item.product.description|truncatewords:10 }}</p>
-                                            <small class="text-muted">Мастер: {{ item.product.master.email }}</small>
-                                        </div>
-                                        <div class="col-md-2 text-center">
-                                            <span class="fw-bold">×{{ item.quantity }}</span>
-                                        </div>
-                                        <div class="col-md-2 text-end">
-                                            <span class="fw-bold text-brown">{{ item.price_at_moment }} ₽</span>
-                                        </div>
-                                    </div>
-                                    {% endfor %}
+                    <div class="text-center py-5">
+                        <div class="mb-4" style="font-size: 4rem;">🛒</div>
+                        <h3 class="fw-bold mb-3">Ваша корзина покупок</h3>
+                        <p class="text-muted mb-4">Здесь вы можете просмотреть и оформить ваши заказы</p>
 
-                                    <div class="row mt-3">
-                                        <div class="col-12 text-end">
-                                            <h5 class="fw-bold text-brown">
-                                                Итого: {{ order.items.count }} товар(а) на
-                                                {{ order.items.0.price_at_moment }} ₽
-                                            </h5>
-                                        </div>
+                        <!-- Кнопка перехода в корзину -->
+                        <div class="d-flex justify-content-center gap-3 flex-wrap">
+                            <a href="{% url 'orders:cart_view' %}" class="btn btn-primary btn-lg px-4">
+                                🛒 Перейти к корзине
+                            </a>
+                            <a href="{% url 'products:catalog' %}" class="btn btn-outline-primary btn-lg px-4">
+                                🛍️ Продолжить покупки
+                            </a>
+                        </div>
+
+                        <!-- Дополнительная информация -->
+                        <div class="row mt-5">
+                            <div class="col-md-4">
+                                <div class="card border-0 bg-light">
+                                    <div class="card-body text-center">
+                                        <div class="mb-3" style="font-size: 2rem;">📦</div>
+                                        <h6>История заказов</h6>
+                                        <p class="text-muted small">Просмотрите ваши предыдущие заказы и их статусы</p>
                                     </div>
                                 </div>
-                                <div class="card-footer bg-white">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <small class="text-muted">
-                                            Обновлен: {{ order.updated_at|date:"d.m.Y H:i" }}
-                                        </small>
-                                        <button class="btn btn-outline-primary btn-sm">
-                                            💬 Написать мастеру
-                                        </button>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card border-0 bg-light">
+                                    <div class="card-body text-center">
+                                        <div class="mb-3" style="font-size: 2rem;">🚚</div>
+                                        <h6>Отслеживание</h6>
+                                        <p class="text-muted small">Следите за статусом доставки ваших заказов</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card border-0 bg-light">
+                                    <div class="card-body text-center">
+                                        <div class="mb-3" style="font-size: 2rem;">💳</div>
+                                        <h6>Способы оплаты</h6>
+                                        <p class="text-muted small">Управление методами оплаты и историей транзакций</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        {% endfor %}
                     </div>
-                    {% else %}
-                    <div class="text-center py-5">
-                        <div class="mb-4" style="font-size: 4rem;">📦</div>
-                        <h3 class="fw-bold mb-3">У вас пока нет заказов</h3>
-                        <p class="text-muted mb-4">Найдите интересные товары в нашем каталоге и сделайте свой первый
-                            заказ</p>
-                        <a href="{% url 'products:catalog' %}" class="btn btn-primary btn-lg px-4">
-                            🛍️ Перейти в каталог
-                        </a>
-                    </div>
-                    {% endif %}
                 </div>
 
                 <!-- Вкладка Избранное -->
@@ -170,7 +130,8 @@
 
                                     <!-- Кнопка удаления из избранного -->
                                     <div class="position-absolute top-0 end-0 m-2">
-                                        <form method="post" action="{% url 'products:remove_from_favorites' favorite.id %}">
+                                        <form method="post"
+                                            action="{% url 'products:remove_from_favorites' favorite.id %}">
                                             {% csrf_token %}
                                             <button type="submit" class="btn btn-danger btn-sm" data-bs-toggle="tooltip"
                                                 title="Удалить из избранного">
@@ -221,7 +182,8 @@
                                                 class="btn btn-outline-primary btn-sm">
                                                 👀 Подробнее
                                             </a>
-                                            <form method="post" action="{% url 'orders:add_to_cart' favorite.product.id %}">
+                                            <form method="post"
+                                                action="{% url 'orders:add_to_cart' favorite.product.id %}">
                                                 {% csrf_token %}
                                                 <button type="submit" class="btn btn-primary w-100">
                                                     🛒 В заказ
@@ -251,11 +213,11 @@
                     role="tabpanel">
                     <div class="text-center py-5">
                         <div class="mb-4" style="font-size: 4rem;">💬</div>
-                        <h3 class="fw-bold mb-3">Система сообщений</h3>
-                        <p class="text-muted mb-4">Скоро здесь появится возможность общаться с мастерами</p>
-                        <div class="alert alert-info">
-                            <strong>В разработке:</strong> Прямые сообщения между покупателями и мастерами
-                        </div>
+                        <h3 class="fw-bold mb-3">Ваши диалоги с мастерами</h3>
+                        <p class="text-muted mb-4">Общайтесь с мастерами по поводу товаров и заказов</p>
+                        <a href="{% url 'chat:dialogue_list' %}" class="btn btn-primary btn-lg px-4">
+                            📨 Перейти к сообщениям
+                        </a>
                     </div>
                 </div>
             </div>
@@ -311,6 +273,16 @@
         color: #8B4513;
         border-bottom: 3px solid #8B4513;
     }
+
+    .card.bg-light {
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+
+    .card.bg-light:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
 </style>
 
 <script>
@@ -318,6 +290,11 @@
         // Обновляем URL без перезагрузки страницы
         const newUrl = `${window.location.pathname}?tab=${tabName}`;
         window.history.pushState({}, '', newUrl);
+
+        // Если выбрана вкладка "Заказы", автоматически переходим в корзину
+        if (tabName === 'orders') {
+            window.location.href = "{% url 'orders:cart_view' %}";
+        }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -335,6 +312,13 @@
                 }
             });
         });
+
+        // Автоматический переход в корзину если активна вкладка заказов
+        const urlParams = new URLSearchParams(window.location.search);
+        const activeTab = urlParams.get('tab');
+        if (activeTab === 'orders') {
+            window.location.href = "{% url 'orders:cart_view' %}";
+        }
     });
 </script>
 {% endblock %}

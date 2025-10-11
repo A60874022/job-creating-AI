@@ -67,6 +67,12 @@
             color: #16181b;
             background-color: #f8f9fa;
         }
+
+        /* Стили для бейджей уведомлений */
+        .notification-badge {
+            font-size: 0.7rem;
+            margin-left: 5px;
+        }
     </style>
 </head>
 
@@ -78,21 +84,45 @@
                 🎨 HandmadeMarket
             </a>
 
+            <!-- Основная навигация -->
+            <div class="navbar-nav mx-auto">
+                <a class="nav-link" href="{% url 'catalog' %}">🛍️ Каталог</a>
+            </div>
+
             <div class="navbar-nav ms-auto">
                 {% if user.is_authenticated %}
                 <!-- Показать для авторизованных пользователей -->
                 <div class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                         👋 Привет, {{ user.email }}
+                        {% if user.unread_messages_count %}
+                        <span class="notification-badge badge bg-danger">{{ user.unread_messages_count }}</span>
+                        {% endif %}
                     </a>
-                    <ul class="dropdown-menu">
+                    <ul class="dropdown-menu dropdown-menu-end">
                         {% if user.is_master %}
+                        <!-- Меню для МАСТЕРА -->
                         <li><a class="dropdown-item" href="{% url 'my_products' %}">🛍️ Мои товары</a></li>
                         <li><a class="dropdown-item" href="{% url 'product_add' %}">🎨 Добавить товар</a></li>
+                        <li><a class="dropdown-item" href="{% url 'chat:dialogue_list' %}">
+                                💬 Мои диалоги
+                                {% if user.unread_messages_count %}
+                                <span class="badge bg-danger float-end">{{ user.unread_messages_count }}</span>
+                                {% endif %}
+                            </a></li>
                         {% else %}
+                        <!-- Меню для ПОКУПАТЕЛЯ -->
                         <li><a class="dropdown-item" href="#">📦 Мои заказы</a></li>
                         <li><a class="dropdown-item" href="#">❤️ Избранное</a></li>
+                        <li><a class="dropdown-item" href="{% url 'chat:dialogue_list' %}">
+                                💬 Мои диалоги
+                                {% if user.unread_messages_count %}
+                                <span class="badge bg-danger float-end">{{ user.unread_messages_count }}</span>
+                                {% endif %}
+                            </a></li>
                         {% endif %}
+
+                        <!-- Общие пункты для всех пользователей -->
                         <li><a class="dropdown-item" href="{% url 'edit_profile' %}">👤 Мой профиль</a></li>
                         <li>
                             <hr class="dropdown-divider">

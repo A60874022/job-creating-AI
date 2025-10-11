@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Мои диалоги | HandmadeMarket{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Заголовок и кнопки управления -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="fw-bold mb-2">
+                        {% if user.is_master %}
+                        💬 Диалоги с покупателями
+                        {% else %}
+                        💬 Диалоги с мастерами
+                        {% endif %}
+                    </h1>
+                    <p class="text-muted">
+                        {% if user.is_master %}
+                        Общайтесь с вашими покупателями
+                        {% else %}
+                        Ваши переговоры с мастерами
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    {% if dialogues %}
+                    <!-- Кнопка очистки всех диалогов -->
+                    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal"
+                        data-bs-target="#clearAllModal">
+                        🗑️ Очистить все
+                    </button>
+                    {% endif %}
+                    <a href="{% url 'products:catalog' %}" class="btn btn-outline-primary">
+                        🛍️ В каталог
+                    </a>
+                </div>
+            </div>
+
+            <!-- Список диалогов -->
+            {% if dialogues %}
+            <div class="row">
+                {% for dialogue in dialogues %}
+                <div class="col-12 mb-3">
+                    <div class="card border-0 shadow-sm hover-shadow">
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <!-- Аватар и информация -->
+                                <div class="col-md-2 col-3">
+                                    <div class="position-relative">
+                                        <div class="bg-brown text-white rounded-circle d-flex align-items-center justify-content-center"
+                                            style="width: 60px; height: 60px; font-size: 1.5rem;">
+                                            {% if user.is_master %}
+                                            👤
+                                            {% else %}
+                                            🎨
+                                            {% endif %}
+                                        </div>
+                                        {% if dialogue.unread_messages_count %}
+                                        <span
+                                            class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                            {{ dialogue.unread_messages_count }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Детали диалога -->
+                                <div class="col-md-6 col-9">
+                                    <h5 class="card-title fw-bold mb-1">
+                                        {% if user.is_master %}
+                                        {{ dialogue.customer.get_full_name|default:dialogue.customer.email }}
+                                        {% else %}
+                                        {{ dialogue.master.get_full_name|default:dialogue.master.email }}
+                                        {% endif %}
+                                    </h5>
+
+                                    {% if dialogue.product %}
+                                    <p class="text-muted mb-1">
+                                        <small>Товар: {{ dialogue.product.title }}</small>
+                                    </p>
+                                    {% endif %}
+
+                                    <!-- Последнее сообщение -->
+                                    <p class="mb-1 text-dark">
+                                        {% with last_message=dialogue.messages.last %}
+                                        {% if last_message %}
+                                        <strong>
+                                            {% if last_message.sender == user %}
+                                            Вы:
+                                            {% else %}
+                                            {% if user.is_master %}
+                                            Покупатель:
+                                            {% else %}
+                                            Мастер:
+                                            {% endif %}
+                                            {% endif %}
+                                        </strong>
+                                        {{ last_message.text|truncatewords:10 }}
+                                        {% else %}
+                                        <span class="text-muted">Диалог начат</span>
+                                        {% endif %}
+                                        {% endwith %}
+                                    </p>
+
+                                    <small class="text-muted">
+                                        📅 {{ dialogue.updated_at|date:"d.m.Y" }}
+                                        • 🕒 {{ dialogue.updated_at|date:"H:i" }}
+                                    </small>
+                                </div>
+
+                                <!-- Кнопки действий -->
+                                <div class="col-md-4 col-12 text-md-end mt-md-0 mt-3">
+                                    <div class="d-flex gap-2 flex-column">
+                                        <a href="{% url 'chat:dialogue_detail' dialogue.id %}"
+                                            class="btn btn-primary btn-sm">
+                                            📨 Открыть чат
+                                        </a>
+                                        <!-- Кнопка удаления диалога -->
+                                        <button type="button" class="btn btn-outline-danger btn-sm"
+                                            data-bs-toggle="modal" data-bs-target="#deleteModal{{ dialogue.id }}">
+                                            🗑️ Удалить
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Модальное окно подтверждения удаления диалога -->
+                <div class="modal fade" id="deleteModal{{ dialogue.id }}" tabindex="-1"
+                    aria-labelledby="deleteModalLabel{{ dialogue.id }}" aria-hidden="true">
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header border-0">
+                                <h5 class="modal-title fw-bold" id="deleteModalLabel{{ dialogue.id }}">
+                                    🗑️ Удаление диалога
+                                </h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                    aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body text-center py-4">
+                                <div class="mb-4" style="font-size: 3rem;">⚠️</div>
+                                <h6 class="fw-bold mb-3">Вы уверены, что хотите удалить диалог?</h6>
+
+                                <!-- Информация о диалоге -->
+                                <div class="card border-0 bg-light mb-3">
+                                    <div class="card-body py-3">
+                                        <h6 class="fw-bold mb-1">
+                                            {% if user.is_master %}
+                                            С покупателем: {{ dialogue.customer.email }}
+                                            {% else %}
+                                            С мастером: {{ dialogue.master.email }}
+                                            {% endif %}
+                                        </h6>
+                                        {% if dialogue.product %}
+                                        <p class="text-muted small mb-2">
+                                            Товар: {{ dialogue.product.title }}
+                                        </p>
+                                        {% endif %}
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="text-muted small">
+                                                Сообщений: {{ dialogue.messages.count }}
+                                            </span>
+                                            <span class="text-muted small">
+                                                Создан: {{ dialogue.created_at|date:"d.m.Y" }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <p class="text-danger small mb-0">
+                                    ❗ Все сообщения из этого диалога будут удалены. Это действие нельзя отменить.
+                                </p>
+                            </div>
+                            <div class="modal-footer border-0 justify-content-center">
+                                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
+                                    ❌ Отмена
+                                </button>
+                                <form method="post" action="{% url 'chat:delete_dialogue' dialogue.id %}"
+                                    class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-danger px-4">
+                                        ✅ Удалить
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <!-- Пустой state -->
+            <div class="text-center py-5">
+                <div class="mb-4" style="font-size: 5rem;">💬</div>
+                <h3 class="fw-bold mb-3">У вас пока нет диалогов</h3>
+                <p class="text-muted mb-4">
+                    {% if user.is_master %}
+                    Ваши покупатели смогут написать вам через карточки товаров
+                    {% else %}
+                    Начните общение с мастером через карточку товара
+                    {% endif %}
+                </p>
+                <a href="{% url 'products:catalog' %}" class="btn btn-primary btn-lg px-4">
+                    🛍️ Перейти в каталог
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно очистки всех диалогов -->
+{% if dialogues %}
+<div class="modal fade" id="clearAllModal" tabindex="-1" aria-labelledby="clearAllModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold" id="clearAllModalLabel">
+                    🗑️ Очистка всех диалогов
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="mb-4" style="font-size: 3rem;">⚠️</div>
+                <h6 class="fw-bold mb-3">Вы уверены, что хотите удалить ВСЕ диалоги?</h6>
+
+                <div class="alert alert-warning">
+                    <strong>Будет удалено:</strong><br>
+                    • Все {{ dialogues|length }} диалогов<br>
+                    • Все сообщения в этих диалогах<br>
+                    • Вся история переписки
+                </div>
+
+                <p class="text-danger small mb-0">
+                    ❗ Это действие нельзя отменить. Все данные будут безвозвратно удалены.
+                </p>
+            </div>
+            <div class="modal-footer border-0 justify-content-center">
+                <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
+                    ❌ Отмена
+                </button>
+                <form method="post" action="{% url 'chat:clear_all_dialogues' %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger px-4">
+                        🗑️ Удалить все
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .hover-shadow {
+        transition: all 0.3s ease;
+    }
+
+    .hover-shadow:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .bg-brown {
+        background-color: #8B4513 !important;
+    }
+
+    .text-brown {
+        color: #8B4513;
+    }
+
+    .btn-primary {
+        background-color: #8B4513;
+        border-color: #8B4513;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .btn-primary:hover {
+        background-color: #654321;
+        border-color: #654321;
+    }
+
+    .btn-outline-danger {
+        border-radius: 8px;
+    }
+
+    .modal-content {
+        border-radius: 15px;
+        border: none;
+    }
+
+    .modal-header {
+        background-color: #f8f9fa;
+        border-radius: 15px 15px 0 0;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Автоматическое закрытие модальных окон после удаления
+        document.querySelectorAll('form[action*="delete"]').forEach(function (form) {
+            form.addEventListener('submit', function () {
+                const modalId = this.closest('.modal').id;
+                const modal = bootstrap.Modal.getInstance(document.getElementById(modalId));
+                if (modal) {
+                    modal.hide();
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

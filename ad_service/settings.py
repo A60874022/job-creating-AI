@@ -31,6 +31,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,7 +41,9 @@ INSTALLED_APPS = [
     'users',
     'products',
     'orders', 
+    'channels',
     'messaging',
+    'chat',
 ]
 
 
@@ -72,7 +75,8 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'ad_service.wsgi.application'
-
+# settings.py
+ASGI_APPLICATION = "ad_service.asgi.application"
 # Указываем Django использовать нашу кастомную модель пользователя
 AUTH_USER_MODEL = 'users.User'
 
@@ -80,6 +84,30 @@ AUTH_USER_MODEL = 'users.User'
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',  # стандартный бекенд
 ]
+
+# settings.py
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],  # ← ЗАМЕНИТЕ "redis" на "127.0.0.1"
+        },
+    },
+}
+# Кэш (опционально, но рекомендуется)
+'''CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://redis:6379/1',  # ← база 1 для кэша
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}
+'''
+# Сессии в Redis (опционально)
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
 
 # Настройки для сброса пароля
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # для разработки
