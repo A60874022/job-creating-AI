@@ -138,7 +138,7 @@
                 </div>
                 {% else %}
                 <!-- Показать для неавторизованных пользователей -->
-                <a class="btn btn-outline-primary me-2" href="{% url 'login' %}">
+                <a class="btn btn-outline-primary me-2" href="{% url 'users:login' %}">
                     Войти
                 </a>
                 <a class="btn btn-primary" href="{% url 'register' %}">
@@ -167,7 +167,7 @@
                         <a href="{% url 'catalog' %}" class="btn btn-light btn-lg px-4">
                             🛍️ Начать покупки
                         </a>
-                        <a href="{% url 'register' %}" class="btn btn-outline-light btn-lg px-4">
+                        <a href="{% url 'users:register' %}" class="btn btn-outline-light btn-lg px-4">
                             🎨 Стать мастером
                         </a>
                         {% else %}

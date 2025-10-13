@@ -38,12 +38,12 @@ class RegisterView(CreateView):
         if user.is_master:
             messages.success(
                 self.request, 
-                _('Successfully registered as master! You can now add your products.')
+                _('Успешная регистрация в качестве мастера! Теперь вы можете добавлять свои товары.')
             )
         else:
             messages.success(
                 self.request, 
-                _('Successfully registered! Start exploring handmade products.')
+                _('Успешная регистрация! Начните изучать handmade товары.')
             )
             
         return redirect(self.success_url)
@@ -52,7 +52,7 @@ class RegisterView(CreateView):
         """Обработка невалидной формы"""
         messages.error(
             self.request, 
-            _('Please correct the errors below.')
+            _('Пожалуйста, исправьте ошибки ниже.')
         )
         return super().form_invalid(form)
 
@@ -70,7 +70,7 @@ class CustomLoginView(LoginView):
     
     def form_valid(self, form):
         """Добавляем сообщение об успешном входе"""
-        messages.success(self.request, _('Successfully logged in!'))
+        messages.success(self.request, _('Успешный вход в систему!'))
         return super().form_valid(form)
 
 
@@ -87,12 +87,12 @@ class CustomPasswordResetView(PasswordResetView):
     """
     template_name = 'users/password_reset.html'
     email_template_name = 'users/password_reset_email.html'
-    success_url = reverse_lazy('password_reset_done')
+    success_url = reverse_lazy('users:password_reset_done')
     
     def form_valid(self, form):
         messages.info(
             self.request,
-            _('If an account with that email exists, you will receive password reset instructions.')
+            _('Если аккаунт с таким email существует, вы получите инструкции по сбросу пароля.')
         )
         return super().form_valid(form)
 
@@ -101,11 +101,17 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
     Сброс пароля - шаг 3: ввод нового пароля
     """
     template_name = 'users/password_reset_confirm.html'
-    success_url = reverse_lazy('password_reset_complete')
+    success_url = reverse_lazy('users:password_reset_complete')
     
     def form_valid(self, form):
-        messages.success(self.request, _('Your password has been reset successfully!'))
+        messages.success(self.request, _('Ваш пароль был успешно сброшен!'))
         return super().form_valid(form)
+
+class CustomPasswordResetCompleteView(PasswordResetCompleteView):
+    """
+    Сброс пароля - шаг 4: завершение сброса пароля
+    """
+    template_name = 'users/password_reset_complete.html'
 
 
 from django.shortcuts import render, redirect
@@ -124,7 +130,7 @@ def edit_profile(request):
             user_form.save()
             profile_form.save()
             messages.success(request, 'Ваш профиль был успешно обновлен!')
-            return redirect('edit_profile') # Перенаправляем обратно на страницу профиля
+            return redirect('users:edit_profile') # Перенаправляем обратно на страницу профиля
         else:
             messages.error(request, 'Пожалуйста, исправьте ошибки в форме.')
 

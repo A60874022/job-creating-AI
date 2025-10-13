@@ -17,6 +17,18 @@
                 </a>
             </div>
 
+            {% if messages %}
+            <div class="mb-4">
+                {% for message in messages %}
+                <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show"
+                    role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             {% if orders %}
             <div class="row">
                 {% for order in orders %}
@@ -82,9 +94,45 @@
                                 <small class="text-muted">
                                     Обновлен: {{ order.updated_at|date:"d.m.Y H:i" }}
                                 </small>
-                                <a href="mailto:{{ order.customer.email }}" class="btn btn-outline-primary btn-sm">
-                                    💬 Написать покупателю
-                                </a>
+                                <div>
+                                    <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
+                                        data-bs-target="#deleteOrderModal{{ order.id }}">
+                                        🗑 Удалить заказ
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal для подтверждения удаления -->
+                    <div class="modal fade" id="deleteOrderModal{{ order.id }}" tabindex="-1"
+                        aria-labelledby="deleteOrderModalLabel{{ order.id }}" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="deleteOrderModalLabel{{ order.id }}">
+                                        Подтверждение удаления
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                        aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Вы уверены, что хотите удалить заказ <strong>#{{ order.id }}</strong>?</p>
+                                    <p class="text-danger">
+                                        <small>Это действие нельзя отменить. Все данные заказа будут удалены
+                                            безвозвратно.</small>
+                                    </p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary"
+                                        data-bs-dismiss="modal">Отмена</button>
+                                    <form action="{% url 'orders:delete_order' order.id %}" method="post">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-danger">
+                                            🗑 Удалить заказ
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                         </div>
                     </div>

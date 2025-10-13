@@ -199,3 +199,53 @@ def master_orders(request):
         'orders': orders
     }
     return render(request, 'orders/master_orders.html', context)
+
+@login_required
+def delete_order(request, order_id):
+    """
+    Удаление заказа покупателем
+    """
+    try:
+        # Находим заказ и проверяем, что он принадлежит текущему пользователю
+        order = get_object_or_404(Order, id=order_id, customer=request.user)
+        
+        # Сохраняем ID заказа для сообщения
+        order_id = order.id
+        
+        # Удаляем заказ
+        order.delete()
+        
+        messages.success(request, f'Заказ #{order_id} успешно удален.')
+        
+    except Exception as e:
+        messages.error(request, f'Ошибка при удалении заказа: {str(e)}')
+    
+    return redirect('orders:customer_orders')
+
+@login_required
+def delete_master(request, order_id):
+    """
+    Представление для удаления заказа мастером
+    """
+    # Проверяем, что пользователь - мастер
+    if not request.user.is_master:
+        messages.error(request, "У вас нет прав для выполнения этого действия.")
+        return redirect('orders:master_orders')
+    
+    # Получаем заказ или возвращаем 404 ошибку
+    order = get_object_or_404(Order, id=order_id)
+    
+    # Дополнительная проверка: убеждаемся, что в заказе есть товары этого мастера
+    master_items = order.items.filter(product__master=request.user)
+    if not master_items.exists():
+        messages.error(request, "Этот заказ не содержит ваших товаров.")
+        return redirect('orders:master_orders')
+    
+    try:
+        order_id = order.id
+        order.delete()
+        messages.success(request, f'Заказ #{order_id} был успешно удален.')
+    except Exception as e:
+        messages.error(request, f'При удалении заказа произошла ошибка: {str(e)}')
+    
+    return redirect('orders:master_orders')
