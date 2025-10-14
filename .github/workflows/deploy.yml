@@ -3,7 +3,7 @@ name: Workflow For Build and Deploy
 on:
   push:
     branches:
-      - (hand_made
+      - hand_made
 
 jobs:
   build_backend_and_push_to_docker_hub:
