@@ -1,0 +1,42 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:  # Позволяет запускать вручную из интерфейса GitHub
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Deploy to server via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          echo "🚀 Starting deployment..."
+          cd /path/to/your/project/on/server
+          
+          # Останавливаем старые контейнеры
+          docker-compose down
+          
+          # Обновляем код
+          git pull origin main
+          
+          # Пересобираем и запускаем контейнеры
+          docker-compose build
+          docker-compose up -d
+          
+          # Выполняем миграции
+          docker-compose exec -T web python manage.py migrate
+          
+          # Собираем статические файлы
+          docker-compose exec -T web python manage.py collectstatic --noinput
+          
+          echo "✅ Deployment completed successfully!"
