@@ -77,16 +77,16 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
 
-# Database
-# Используем PostgreSQL из переменных окружения
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'handmade_db'),
-        'USER': os.environ.get('DB_USER', 'handmade_user'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'handmade_pass'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.environ.get("POSTGRES_DB", "postgres"),
+        "USER": os.environ.get("POSTGRES_USER", "postgres"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "postgres"),
+        "HOST": os.environ.get(
+            "DB_HOST", "db"
+        ),  # Имя контейнера с PostgreSQL в Docker Compose
+        "PORT": os.environ.get("DB_PORT", "5432"),
     }
 }
 

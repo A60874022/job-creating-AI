@@ -3,7 +3,7 @@ FROM python:3.10-slim
 # Установка системных зависимостей
 RUN apt-get update && apt-get install -y \
     gcc \
-    postgresql-dev \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка рабочей директории
