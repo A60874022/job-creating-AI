@@ -2,7 +2,7 @@ name: Deploy Ad Service
 
 on:
   push:
-    branches: [ main ]  # Исправлено на main, проверь название своей ветки
+    branches: [ hand_made]  # Исправлено на main, проверь название своей ветки
 
 jobs:
   build_and_push:
