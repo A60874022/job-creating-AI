@@ -2,9 +2,12 @@ version: '3.8'
 
 services:
   web:
-    image: anton60874022/ad_service:latest  # Используем образ из Docker Hub
+    image: anton60874022/ad_service:latest
     container_name: handmade_web
-    command: daphne -b 0.0.0.0 -p 8000 ad_service.asgi:application
+    command: >
+      sh -c "
+      python manage.py collectstatic --noinput --clear &&
+      daphne -b 0.0.0.0 -p 8000 ad_service.asgi:application"
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
@@ -18,11 +21,6 @@ services:
     restart: unless-stopped
     networks:
       - backend
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   db:
     image: postgres:14
@@ -45,10 +43,8 @@ services:
     container_name: handmade_nginx
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/conf.d:/etc/nginx/conf.d
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     depends_on:

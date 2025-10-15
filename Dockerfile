@@ -4,6 +4,7 @@ FROM python:3.10-slim
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка рабочей директории
@@ -16,9 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копирование проекта
 COPY . .
 
-# Создание пользователя для безопасности
-RUN useradd -m -u 1000 appuser
-RUN chown -R appuser:appuser /app
-USER appuser
+# Создание необходимых директорий
+RUN mkdir -p staticfiles media
 
 # Команда будет указана в docker-compose

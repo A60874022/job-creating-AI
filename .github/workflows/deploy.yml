@@ -133,15 +133,12 @@ jobs:
             done
             
             echo "4. Waiting for application to start..."
-            sleep 10
+            sleep 15
             
             echo "5. Running migrations..."
             docker-compose exec -T web python manage.py migrate --noinput
             
-            echo "6. Collecting static files..."
-            docker-compose exec -T web python manage.py collectstatic --noinput --clear
-            
-            echo "7. Checking services status..."
+            echo "6. Checking services status..."
             docker-compose ps
             
             echo "✅ Deployment completed with database preservation!"
@@ -159,16 +156,13 @@ jobs:
             echo "1. Container status:"
             docker-compose ps
             
-            echo "2. Database volume info:"
-            docker volume inspect ad_service_postgres_data || docker volume ls | grep postgres
-            
-            echo "3. Checking if application can connect to database..."
+            echo "2. Checking if application can connect to database..."
             docker-compose exec -T web python manage.py check --database default
             
-            echo "4. Recent application logs:"
+            echo "3. Recent application logs:"
             docker-compose logs --tail=10 web
             
-            echo "5. Checking web service response..."
+            echo "4. Checking web service response..."
             curl -f http://localhost:8000/ || curl -f http://localhost/ || echo "Application might be starting..."
             
             echo "🎉 Deployment verification complete! Database preserved."
