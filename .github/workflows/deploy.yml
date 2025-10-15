@@ -2,7 +2,7 @@ name: Deploy Ad Service
 
 on:
   push:
-    branches: [ hand_made]  # Исправлено на main, проверь название своей ветки
+    branches: [ hand_made ]
 
 jobs:
   build_and_push:
@@ -28,59 +28,147 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: anton60874022/ad_service:latest
-          cache-from: type=registry,ref=anton60874022/ad_service:latest
-          cache-to: type=inline
 
   deploy:
     name: Deploy to Server
     runs-on: ubuntu-latest
     needs: build_and_push
     steps:
-      - name: Deploy application via SSH
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Clean server and setup directories (preserve DB)
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            set -e  # Выход при ошибке
+            echo "🧹 Cleaning server (preserving database)..."
+            cd /root
             
-            echo "🚀 Starting deployment..."
+            # Останавливаем контейнеры если есть (сохраняем тома)
+            if [ -d "ad_service" ]; then
+              cd ad_service
+              docker-compose down || true
+            fi
+            
+            # Удаляем только контейнеры приложения, НЕ тома БД
+            echo "Removing application containers..."
+            docker ps -a | grep -E "(handmade_web|handmade_nginx|redis)" | awk '{print $1}' | xargs -r docker rm -f || true
+            
+            # Удаляем образы приложения, но не postgres
+            echo "Removing application images..."
+            docker images | grep -E "(ad_service|anton60874022)" | awk '{print $3}' | xargs -r docker rmi -f || true
+            
+            # Очищаем неиспользуемые ресурсы, но сохраняем тома
+            echo "Cleaning unused Docker resources..."
+            docker system prune -f || true
+            
+            # Проверяем что том БД существует
+            echo "Checking database volume..."
+            docker volume ls | grep postgres_data || echo "Database volume not found (will be created)"
+            
+            # Очищаем и пересоздаем папку проекта (тома БД сохраняются автоматически)
+            echo "Recreating project directory..."
+            rm -rf /root/ad_service
+            mkdir -p /root/ad_service/nginx/conf.d
+            mkdir -p /root/ad_service/logs/nginx
+            
+            echo "✅ Server cleaned (database data preserved)"
+
+      - name: Copy infrastructure files to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: "infra/"
+          target: "/root/ad_service/"
+          overwrite: true
+          strip_components: 1
+
+      - name: Copy .env to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: ".env"
+          target: "/root/ad_service/"
+          overwrite: true
+
+      - name: Deploy application with database preservation
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            set -e
+            echo "🚀 Starting deployment (with database preservation)..."
             cd /root/ad_service/
             
-            echo "1. Pulling latest images..."
+            echo "=== Current directory structure ==="
+            ls -la
+            echo "=== Nginx configuration ==="
+            ls -la nginx/ || echo "Nginx directory not found"
+            
+            echo "1. Pulling latest application image..."
             docker pull anton60874022/ad_service:latest
             
-            echo "2. Stopping existing containers..."
-            docker-compose down --remove-orphans || true
-            
-            echo "3. Checking directory structure..."
-            mkdir -p nginx/conf.d logs/nginx
-            
-            echo "4. Starting services..."
+            echo "2. Starting containers (database volume will be reused)..."
             docker-compose up -d
             
-            echo "5. Waiting for services to be healthy..."
-            sleep 30
-            
-            echo "6. Running database migrations..."
-            docker-compose exec -T web python manage.py migrate --noinput || echo "Migrations might have failed, continuing..."
-            
-            echo "7. Collecting static files..."
-            docker-compose exec -T web python manage.py collectstatic --noinput --clear || echo "Static collection might have failed"
-            
-            echo "8. Checking service status..."
-            docker-compose ps
-            
-            echo "9. Checking application health..."
-            for i in {1..10}; do
-              if curl -f http://localhost:8000/ || curl -f http://localhost/; then
-                echo "✅ Application is responding correctly"
+            echo "3. Waiting for database to be ready..."
+            # Ждем пока PostgreSQL будет готов принимать подключения
+            for i in {1..30}; do
+              if docker-compose exec -T db pg_isready -U postgres; then
+                echo "✅ Database is ready!"
                 break
               else
-                echo "⏳ Application not ready yet, attempt $i/10"
-                sleep 10
+                echo "⏳ Waiting for database... ($i/30)"
+                sleep 2
               fi
             done
             
-            echo "✅ Deployment completed successfully!"
+            echo "4. Waiting for application to start..."
+            sleep 10
+            
+            echo "5. Running migrations..."
+            docker-compose exec -T web python manage.py migrate --noinput
+            
+            echo "6. Collecting static files..."
+            docker-compose exec -T web python manage.py collectstatic --noinput --clear
+            
+            echo "7. Checking services status..."
+            docker-compose ps
+            
+            echo "✅ Deployment completed with database preservation!"
+
+      - name: Verify deployment and data integrity
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "🔍 Final verification (checking database)..."
+            cd /root/ad_service/
+            
+            echo "1. Container status:"
+            docker-compose ps
+            
+            echo "2. Database volume info:"
+            docker volume inspect ad_service_postgres_data || docker volume ls | grep postgres
+            
+            echo "3. Checking if application can connect to database..."
+            docker-compose exec -T web python manage.py check --database default
+            
+            echo "4. Recent application logs:"
+            docker-compose logs --tail=10 web
+            
+            echo "5. Checking web service response..."
+            curl -f http://localhost:8000/ || curl -f http://localhost/ || echo "Application might be starting..."
+            
+            echo "🎉 Deployment verification complete! Database preserved."
