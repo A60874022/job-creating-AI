@@ -1,27 +1,28 @@
-name: Deploy Ad Service
+name: Workflow For Build and Deploy
 
 on:
   push:
-    branches: [ hand_made ]
+    branches:
+      - hand_made
 
 jobs:
-  build_and_push:
-    name: Build and Push Docker Image
+  build_backend_and_push_to_docker_hub:
+    name: Push docker image of backend to DockerHub
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout the repo
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Log in to Docker Hub
+      - name: Login to Docker
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push Docker image
+      - name: Build and Push to Docker Hub
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -30,105 +31,34 @@ jobs:
           tags: anton60874022/ad_service:latest
 
   deploy:
-    name: Deploy to Server
+    name: Deploy project on server
     runs-on: ubuntu-latest
-    needs: build_and_push
+    needs:
+      - build_backend_and_push_to_docker_hub
     steps:
-      - name: Checkout code
+      - name: Checkout the repo
         uses: actions/checkout@v4
 
-      - name: Copy necessary files to server
+      # Копируем файлы на сервер через SCP (используем пароль)
+      - name: Copy infra files via SCP
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          port: 22
-          source: "docker-compose.yml,.env"
+          source: "."
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Deploy application
+      # Запускаем docker-compose на сервере
+      - name: Run Docker Compose on Server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          port: 22
           script: |
-            set -e
-            echo "🚀 Starting deployment process..."
             cd /root/ad_service/
-            
-            echo "1. Checking current directory..."
-            ls -la
-            
-            echo "2. Creating necessary directories..."
-            mkdir -p logs staticfiles media
-            
-            echo "3. Pulling latest Docker image..."
-            docker-compose pull
-            
-            echo "4. Stopping existing containers..."
-            docker-compose down --remove-orphans
-            
-            echo "5. Starting new containers..."
-            docker-compose up -d --build
-            
-            echo "6. Waiting for services to start..."
-            sleep 30
-            
-            echo "7. Running database migrations..."
-            docker-compose exec -T web python manage.py migrate --noinput
-            
-            echo "8. Collecting static files..."
-            docker-compose exec -T web python manage.py collectstatic --noinput --clear
-            
-            echo "9. Checking container status..."
-            docker-compose ps
-            
-            echo "✅ Deployment completed successfully!"
-
-      - name: Verify deployment
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          port: 22
-          script: |
-            echo "🔍 Final verification..."
-            cd /root/ad_service/
-            
-            echo "1. Container status:"
-            docker-compose ps
-            
-            echo "2. Service logs:"
-            docker-compose logs --tail=10 web
-            
-            echo "3. Checking if application is responding..."
-            curl -f http://localhost:8000/ || echo "Application is starting..."
-            
-            echo "🎉 Deployment verification complete!"
-
-  notify:
-    name: Notify Deployment Status
-    runs-on: ubuntu-latest
-    needs: deploy
-    if: always()
-    steps:
-      - name: Notify success
-        if: needs.deploy.result == 'success'
-        run: |
-          echo "✅ Deployment completed successfully!"
-          echo "🌐 Your application should be available at:"
-          echo "   http://193.42.125.9/"
-          echo "   or"
-          echo "   http://193.42.125.9:8000/"
-          
-      - name: Notify failure
-        if: needs.deploy.result == 'failure'
-        run: |
-          echo "❌ Deployment failed!"
-          echo "Check the workflow logs for details"
-          exit 1
+            docker-compose -f docker-compose.yml pull
+            docker-compose -f docker-compose.yml up -d --build
+            docker image prune -af
