@@ -39,60 +39,49 @@ jobs:
       - name: Checkout the repo
         uses: actions/checkout@v4
 
-      # Тестовое подключение по SSH для проверки аутентификации
-      - name: Test SSH connection
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: 22
-          script: |
-            echo "✅ SSH подключение успешно!"
-            echo "Текущий пользователь: $(whoami)"
-            echo "Текущая директория: $(pwd)"
-            echo "Проверка Docker:"
-            docker --version
-            docker-compose --version
+      # Создаем файл с SSH ключом
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.HOST }} >> ~/.ssh/known_hosts
 
-      # Копируем файлы на сервер через SCP (используем ТОЛЬКО SSH ключ)
+      # Тестовое подключение по SSH
+      - name: Test SSH connection
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USER }}@${{ secrets.HOST }} "
+            echo '✅ SSH подключение успешно!'
+            whoami
+            pwd
+          "
+
+      # Копируем файлы на сервер через SCP
       - name: Copy files via SCP
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          port: 22
-          source: "."
-          target: "/root/ad_service/"
-          overwrite: true
-          strip_components: 0
+        run: |
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa -r ./* ${{ secrets.USER }}@${{ secrets.HOST }}:/root/ad_service/
 
       # Запускаем docker-compose на сервере
       - name: Run Docker Compose on Server
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: 22
-          script: |
-            echo "🚀 Начинаем деплой..."
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.USER }}@${{ secrets.HOST }} "
+            echo '🚀 Начинаем деплой...'
             cd /root/ad_service/
             
-            echo "1. Проверяем наличие docker-compose.yml"
+            echo '1. Проверяем наличие docker-compose.yml'
             ls -la
             
-            echo "2. Обновляем образы из Docker Hub"
-            docker-compose -f docker-compose.yml pull || echo "⚠️ Не удалось обновить образы, продолжаем..."
+            echo '2. Обновляем образы из Docker Hub'
+            docker-compose -f docker-compose.yml pull || echo '⚠️ Не удалось обновить образы, продолжаем...'
             
-            echo "3. Перезапускаем контейнеры"
+            echo '3. Перезапускаем контейнеры'
             docker-compose -f docker-compose.yml up -d --build
             
-            echo "4. Очищаем неиспользуемые образы"
+            echo '4. Очищаем неиспользуемые образы'
             docker image prune -af
             
-            echo "5. Проверяем статус контейнеров"
+            echo '5. Проверяем статус контейнеров'
             docker-compose -f docker-compose.yml ps
             
-            echo "✅ Деплой успешно завершен!"
+            echo '✅ Деплой успешно завершен!'
+          "
