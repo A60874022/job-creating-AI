@@ -39,16 +39,34 @@ jobs:
       - name: Checkout the repo
         uses: actions/checkout@v4
 
-      # Копируем файлы на сервер через SCP (используем ключ или пароль)
-      - name: Copy infra files via SCP
+      # Тестовое подключение по SSH для проверки аутентификации
+      - name: Test SSH connection
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            echo "✅ SSH подключение успешно!"
+            echo "Текущий пользователь: $(whoami)"
+            echo "Текущая директория: $(pwd)"
+            echo "Проверка Docker:"
+            docker --version
+            docker-compose --version
+
+      # Копируем файлы на сервер через SCP (используем ТОЛЬКО SSH ключ)
+      - name: Copy files via SCP
         uses: appleboy/scp-action@master
         with:
-          host: ${{ secrets.HOST }}       # 83.222.19.119
-          username: ${{ secrets.USER }}   # root или deployer
-          password: ${{ secrets.SSH_PASSWORD }}  # Пароль, если вход по паролю
-          source: "." 
-          target: "/root/ad_service/"  # Путь на сервере
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          source: "."
+          target: "/root/ad_service/"
           overwrite: true
+          strip_components: 0
 
       # Запускаем docker-compose на сервере
       - name: Run Docker Compose on Server
@@ -57,9 +75,24 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           key: ${{ secrets.SSH_KEY }}
-          password: ${{ secrets.SSH_PASSWORD }}  # Если вход по паролю
+          port: 22
           script: |
-            cd /root/education_backend/infra/
-            docker-compose -f docker-compose.yml pull
+            echo "🚀 Начинаем деплой..."
+            cd /root/ad_service/
+            
+            echo "1. Проверяем наличие docker-compose.yml"
+            ls -la
+            
+            echo "2. Обновляем образы из Docker Hub"
+            docker-compose -f docker-compose.yml pull || echo "⚠️ Не удалось обновить образы, продолжаем..."
+            
+            echo "3. Перезапускаем контейнеры"
             docker-compose -f docker-compose.yml up -d --build
+            
+            echo "4. Очищаем неиспользуемые образы"
             docker image prune -af
+            
+            echo "5. Проверяем статус контейнеров"
+            docker-compose -f docker-compose.yml ps
+            
+            echo "✅ Деплой успешно завершен!"
