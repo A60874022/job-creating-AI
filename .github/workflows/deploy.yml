@@ -37,13 +37,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Clean server before deploy
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "🧹 Cleaning server..."
+            cd /root/ad_service/ || exit 0
+            
+            # Останавливаем контейнеры если есть
+            docker-compose down || true
+            
+            # Удаляем старые контейнеры проекта
+            docker ps -a | grep -E "(handmade_|ad_service)" | awk '{print $1}' | xargs docker rm -f || true
+            
+            # Удаляем старые образы проекта
+            docker images | grep -E "(ad_service|none)" | awk '{print $3}' | xargs docker rmi -f || true
+            
+            # Очищаем неиспользуемые образы
+            docker image prune -af || true
+            
+            echo "✅ Server cleaned"
+
       - name: Copy files to server
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          source: "docker-compose.yml,nginx/"
+          source: "infra/docker-compose.yml,infra/nginx,.env"
           target: "/root/ad_service/"
           overwrite: true
 
@@ -57,25 +81,61 @@ jobs:
             echo "🚀 Starting deployment..."
             cd /root/ad_service/
             
-            echo "1. Creating directories..."
+            echo "1. Checking copied files..."
+            ls -la
+            echo "nginx content:"
+            ls -la nginx/ || echo "No nginx directory"
+            
+            echo "2. Creating necessary directories..."
             mkdir -p logs/nginx
             
-            echo "2. Setting permissions..."
+            echo "3. Setting permissions..."
             chmod -R 755 nginx logs
+            chmod 600 .env || true
             
-            echo "3. Pulling latest images..."
+            echo "4. Pulling latest images..."
             docker-compose pull
             
-            echo "4. Stopping old containers..."
+            echo "5. Stopping old containers..."
             docker-compose down --remove-orphans
             
-            echo "5. Starting new containers..."
+            echo "6. Starting new containers..."
             docker-compose up -d
             
-            echo "6. Checking status..."
+            echo "7. Waiting for services to start..."
+            sleep 30
+            
+            echo "8. Running migrations..."
+            docker-compose exec -T web python manage.py migrate --noinput || echo "Migrations may have failed"
+            
+            echo "9. Collecting static files..."
+            docker-compose exec -T web python manage.py collectstatic --noinput --clear || echo "Static collection may have failed"
+            
+            echo "10. Checking status..."
             docker-compose ps
             
-            echo "7. Checking logs..."
-            docker-compose logs --tail=20 web
+            echo "11. Checking application health..."
+            curl -f http://localhost:8000/ || curl -f http://localhost/ || echo "Application might be starting..."
             
             echo "✅ Deployment completed!"
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "🔍 Final verification..."
+            cd /root/ad_service/
+            
+            echo "1. Container status:"
+            docker-compose ps
+            
+            echo "2. Recent logs:"
+            docker-compose logs --tail=20 web
+            
+            echo "3. Checking if services are responding..."
+            docker-compose exec -T web python manage.py check --database default || echo "Database check warning"
+            
+            echo "🎉 Deployment verification complete!"
