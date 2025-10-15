@@ -88,6 +88,7 @@ class ProfileAdmin(admin.ModelAdmin):
         return 'Нет аватара'
     avatar_preview.short_description = 'Предпросмотр аватара'
     avatar_preview.allow_tags = True
+
     
     def get_readonly_fields(self, request, obj=None):
         """Делаем поле user редактируемым только при создании"""
