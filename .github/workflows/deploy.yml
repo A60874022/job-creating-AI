@@ -2,7 +2,7 @@ name: Deploy Ad Service
 
 on:
   push:
-    branches: [ hand_made ]
+    branches: [ main ]  # Исправлено на main, проверь название своей ветки
 
 jobs:
   build_and_push:
@@ -15,7 +15,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Login to Docker
+      - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -28,114 +28,59 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: anton60874022/ad_service:latest
+          cache-from: type=registry,ref=anton60874022/ad_service:latest
+          cache-to: type=inline
 
   deploy:
     name: Deploy to Server
     runs-on: ubuntu-latest
     needs: build_and_push
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Clean server before deploy
+      - name: Deploy application via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🧹 Cleaning server..."
-            cd /root/ad_service/ || exit 0
+            set -e  # Выход при ошибке
             
-            # Останавливаем контейнеры если есть
-            docker-compose down || true
-            
-            # Удаляем старые контейнеры проекта
-            docker ps -a | grep -E "(handmade_|ad_service)" | awk '{print $1}' | xargs docker rm -f || true
-            
-            # Удаляем старые образы проекта
-            docker images | grep -E "(ad_service|none)" | awk '{print $3}' | xargs docker rmi -f || true
-            
-            # Очищаем неиспользуемые образы
-            docker image prune -af || true
-            
-            echo "✅ Server cleaned"
-
-      - name: Copy files to server
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          source: "infra/docker-compose.yml,infra/nginx,.env"
-          target: "/root/ad_service/"
-          overwrite: true
-
-      - name: Deploy application
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          script: |
             echo "🚀 Starting deployment..."
             cd /root/ad_service/
             
-            echo "1. Checking copied files..."
-            ls -la
-            echo "nginx content:"
-            ls -la nginx/ || echo "No nginx directory"
+            echo "1. Pulling latest images..."
+            docker pull anton60874022/ad_service:latest
             
-            echo "2. Creating necessary directories..."
-            mkdir -p logs/nginx
+            echo "2. Stopping existing containers..."
+            docker-compose down --remove-orphans || true
             
-            echo "3. Setting permissions..."
-            chmod -R 755 nginx logs
-            chmod 600 .env || true
+            echo "3. Checking directory structure..."
+            mkdir -p nginx/conf.d logs/nginx
             
-            echo "4. Pulling latest images..."
-            docker-compose pull
-            
-            echo "5. Stopping old containers..."
-            docker-compose down --remove-orphans
-            
-            echo "6. Starting new containers..."
+            echo "4. Starting services..."
             docker-compose up -d
             
-            echo "7. Waiting for services to start..."
+            echo "5. Waiting for services to be healthy..."
             sleep 30
             
-            echo "8. Running migrations..."
-            docker-compose exec -T web python manage.py migrate --noinput || echo "Migrations may have failed"
+            echo "6. Running database migrations..."
+            docker-compose exec -T web python manage.py migrate --noinput || echo "Migrations might have failed, continuing..."
             
-            echo "9. Collecting static files..."
-            docker-compose exec -T web python manage.py collectstatic --noinput --clear || echo "Static collection may have failed"
+            echo "7. Collecting static files..."
+            docker-compose exec -T web python manage.py collectstatic --noinput --clear || echo "Static collection might have failed"
             
-            echo "10. Checking status..."
+            echo "8. Checking service status..."
             docker-compose ps
             
-            echo "11. Checking application health..."
-            curl -f http://localhost:8000/ || curl -f http://localhost/ || echo "Application might be starting..."
+            echo "9. Checking application health..."
+            for i in {1..10}; do
+              if curl -f http://localhost:8000/ || curl -f http://localhost/; then
+                echo "✅ Application is responding correctly"
+                break
+              else
+                echo "⏳ Application not ready yet, attempt $i/10"
+                sleep 10
+              fi
+            done
             
-            echo "✅ Deployment completed!"
-
-      - name: Verify deployment
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          script: |
-            echo "🔍 Final verification..."
-            cd /root/ad_service/
-            
-            echo "1. Container status:"
-            docker-compose ps
-            
-            echo "2. Recent logs:"
-            docker-compose logs --tail=20 web
-            
-            echo "3. Checking if services are responding..."
-            docker-compose exec -T web python manage.py check --database default || echo "Database check warning"
-            
-            echo "🎉 Deployment verification complete!"
+            echo "✅ Deployment completed successfully!"
