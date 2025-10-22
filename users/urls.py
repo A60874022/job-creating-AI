@@ -10,6 +10,7 @@ urlpatterns = [
     path('register/', views.RegisterView.as_view(), name='register'),
     path('login/', views.CustomLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
+    path('verify-email/<str:token>/', views.verify_email, name='verify_email'),
     path('profile/', edit_profile, name='edit_profile'),
     
     # Сброс пароля

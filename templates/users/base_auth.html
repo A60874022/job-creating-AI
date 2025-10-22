@@ -34,7 +34,39 @@
             background-color: #654321;
             border-color: #654321;
         }
+
+        /* Стили для плейсхолдеров - бледно-серый цвет */
+        .form-control::placeholder {
+            color: #6c757d !important;
+            opacity: 0.7 !important;
+        }
+
+        .form-control::-webkit-input-placeholder {
+            color: #6c757d !important;
+            opacity: 0.7 !important;
+        }
+
+        .form-control::-moz-placeholder {
+            color: #6c757d !important;
+            opacity: 0.7 !important;
+        }
+
+        .form-control:-ms-input-placeholder {
+            color: #6c757d !important;
+            opacity: 0.7 !important;
+        }
+
+        .form-control::-ms-input-placeholder {
+            color: #6c757d !important;
+            opacity: 0.7 !important;
+        }
+
+        /* Темный цвет для введенного текста */
+        .form-control {
+            color: #212529 !important;
+        }
     </style>
+    {% block extra_css %}{% endblock %}
 </head>
 
 <body>
