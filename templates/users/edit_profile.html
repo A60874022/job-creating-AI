@@ -1,104 +1,313 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Редактирование профиля{% endblock %}
+{% block title %}Редактирование профиля | HandmadeMarket{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <div class="row">
-        <div class="col-md-12">
-            <h2>Редактирование профиля</h2>
-            <p>Здесь вы можете изменить информацию о себе.</p>
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Заголовок -->
+            <div class="text-center mb-5">
+                <h1 class="fw-bold mb-3">👤 Редактирование профиля</h1>
+                <p class="text-muted">Обновите информацию о себе и настройте аккаунт</p>
+            </div>
 
             <!-- Навигационные вкладки -->
-            <ul class="nav nav-tabs mb-4" id="profileTabs" role="tablist">
+            <ul class="nav nav-tabs nav-justified mb-4" id="profileTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="main-tab" data-bs-toggle="tab" data-bs-target="#main"
-                        type="button" role="tab" aria-controls="main" aria-selected="true">Основная информация</button>
+                        type="button" role="tab" aria-controls="main" aria-selected="true">
+                        📝 Основная информация
+                    </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="goods-tab" data-bs-toggle="tab" data-bs-target="#goods" type="button"
-                        role="tab" aria-controls="goods" aria-selected="false">Мои товары</button>
+                        role="tab" aria-controls="goods" aria-selected="false">
+                        🛍️ Мои товары
+                    </button>
                 </li>
             </ul>
 
             <!-- Содержимое вкладок -->
             <div class="tab-content" id="profileTabsContent">
+
                 <!-- Вкладка "Основная информация" -->
                 <div class="tab-pane fade show active" id="main" role="tabpanel" aria-labelledby="main-tab">
-                    <form method="post" enctype="multipart/form-data">
-                        {% csrf_token %}
 
-                        <!-- Отображение системных сообщений -->
-                        {% if messages %}
-                        {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                        {% endfor %}
-                        {% endif %}
+                    <!-- Отображение системных сообщений -->
+                    {% if messages %}
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
+                        {% if message.tags == 'success' %}✅{% elif message.tags == 'error' %}❌{% else %}ℹ️{% endif %}
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
 
-                        <div class="row">
-                            <!-- Форма пользователя (User) -->
-                            <div class="col-md-6">
-                                <h4>Основные данные</h4>
-                                <div class="mb-3">
-                                    <label for="{{ user_form.email.id_for_label }}" class="form-label">Email</label>
-                                    {{ user_form.email }}
-                                    {% if user_form.email.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ user_form.email.errors.0 }}
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body p-4">
+                            <form method="post" enctype="multipart/form-data">
+                                {% csrf_token %}
+
+                                <div class="row">
+                                    <!-- Аватар и контактная информация -->
+                                    <div class="col-lg-4 mb-4">
+                                        <div class="text-center">
+                                            <!-- Замечание 6: Отображение аватара -->
+                                            <div class="position-relative d-inline-block">
+                                                {% if user.profile.avatar and user.profile.avatar.url %}
+                                                <img src="{{ user.profile.avatar.url }}" class="rounded-circle mb-3"
+                                                    alt="Аватар {{ user.email }}"
+                                                    style="width: 150px; height: 150px; object-fit: cover;">
+                                                {% else %}
+                                                <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mb-3 mx-auto"
+                                                    style="width: 150px; height: 150px;">
+                                                    <span class="text-white" style="font-size: 3rem;">👤</span>
+                                                </div>
+                                                {% endif %}
+                                            </div>
+
+                                            <h5 class="fw-bold">{{ user.email }}</h5>
+                                            {% if user.profile.city %}
+                                            <p class="text-muted mb-3">📍 {{ user.profile.city }}</p>
+                                            {% else %}
+                                            <p class="text-muted mb-3">📍 Город не указан</p>
+                                            {% endif %}
+
+                                            <!-- Замечание 9: Загрузка аватара -->
+                                            <div class="mb-3">
+                                                <label for="{{ profile_form.avatar.id_for_label }}"
+                                                    class="form-label fw-bold">
+                                                    📷 Изменить аватар
+                                                </label>
+                                                {{ profile_form.avatar }}
+                                                {% if profile_form.avatar.errors %}
+                                                <div class="text-danger small mt-1">
+                                                    {{ profile_form.avatar.errors.0 }}
+                                                </div>
+                                                {% endif %}
+                                                <div class="form-text">
+                                                    Рекомендуемый размер: 150x150 px. Форматы: JPG, PNG, GIF
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                    {% endif %}
-                                </div>
-                                <!-- Добавьте другие поля user_form при необходимости (first_name, last_name) -->
-                            </div>
 
-                            <!-- Форма профиля (Profile) -->
-                            <div class="col-md-6">
-                                <h4>Дополнительная информация</h4>
+                                    <!-- Основные поля формы -->
+                                    <div class="col-lg-8">
+                                        <div class="row">
+                                            <!-- Email -->
+                                            <div class="col-12 mb-3">
+                                                <label for="{{ user_form.email.id_for_label }}"
+                                                    class="form-label fw-bold">
+                                                    📧 Email адрес
+                                                </label>
+                                                {{ user_form.email }}
+                                                {% if user_form.email.errors %}
+                                                <div class="text-danger small mt-1">
+                                                    {{ user_form.email.errors.0 }}
+                                                </div>
+                                                {% endif %}
+                                            </div>
 
-                                <div class="mb-3">
-                                    <label for="{{ profile_form.avatar.id_for_label }}" class="form-label">{{
-                                        profile_form.avatar.label }}</label>
-                                    {{ profile_form.avatar }}
-                                    {% if profile_form.avatar.errors %}
-                                    <div class="invalid-feedback d-block">
-                                        {{ profile_form.avatar.errors.0 }}
+                                            <!-- Замечания 3-4: Город с выбором -->
+                                            <div class="col-md-6 mb-3">
+                                                <label for="{{ profile_form.city.id_for_label }}"
+                                                    class="form-label fw-bold">
+                                                    🏙️ Город
+                                                </label>
+                                                {{ profile_form.city }}
+                                                {% if profile_form.city.errors %}
+                                                <div class="text-danger small mt-1">
+                                                    {{ profile_form.city.errors.0 }}
+                                                </div>
+                                                {% endif %}
+                                                <div class="form-text">
+                                                    Укажите город для лучшего поиска товаров
+                                                </div>
+                                            </div>
+
+                                            <!-- О себе -->
+                                            <div class="col-12 mb-4">
+                                                <label for="{{ profile_form.bio.id_for_label }}"
+                                                    class="form-label fw-bold">
+                                                    💬 О себе
+                                                </label>
+                                                {{ profile_form.bio }}
+                                                {% if profile_form.bio.errors %}
+                                                <div class="text-danger small mt-1">
+                                                    {{ profile_form.bio.errors.0 }}
+                                                </div>
+                                                {% endif %}
+                                                <div class="form-text">
+                                                    Расскажите о себе, своем опыте и творчестве (максимум 500 символов)
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Кнопки действий -->
+                                        <div class="d-flex gap-3 flex-wrap">
+                                            <button type="submit" class="btn btn-primary btn-lg px-4">
+                                                💾 Сохранить изменения
+                                            </button>
+                                            <a href="{% url 'products:catalog' %}"
+                                                class="btn btn-outline-secondary btn-lg px-4">
+                                                ← Вернуться в каталог
+                                            </a>
+                                        </div>
                                     </div>
-                                    {% endif %}
                                 </div>
+                            </form>
+                        </div>
+                    </div>
 
-                                <div class="mb-3">
-                                    <label for="{{ profile_form.city.id_for_label }}" class="form-label">{{
-                                        profile_form.city.label }}</label>
-                                    {{ profile_form.city }}
+                    <!-- Замечание 10: Блок удаления аккаунта -->
+                    <div class="card border-danger mt-4">
+                        <div class="card-header bg-danger text-white">
+                            <h6 class="mb-0">🗑️ Опасная зона</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <h6 class="fw-bold text-danger">Удаление аккаунта</h6>
+                                    <p class="text-muted small mb-0">
+                                        После удаления аккаунта восстановление данных невозможно.
+                                        Все ваши товары, заказы и сообщения будут удалены безвозвратно.
+                                    </p>
                                 </div>
-
-                                <div class="mb-3">
-                                    <label for="{{ profile_form.bio.id_for_label }}" class="form-label">{{
-                                        profile_form.bio.label }}</label>
-                                    {{ profile_form.bio }}
+                                <div class="col-md-4 text-md-end">
+                                    <a href="{% url 'users:delete_account' %}" class="btn btn-outline-danger">
+                                        🗑️ Удалить аккаунт
+                                    </a>
                                 </div>
                             </div>
                         </div>
-
-                        <button type="submit" class="btn btn-primary">Сохранить изменения</button>
-                    </form>
+                    </div>
                 </div>
 
-                <!-- Вкладка "Мои товары" (заглушка) -->
+                <!-- Вкладка "Мои товары" -->
                 <div class="tab-pane fade" id="goods" role="tabpanel" aria-labelledby="goods-tab">
-                    <h4>Мои товары</h4>
-                    <p>Здесь будет отображаться список ваших товаров. Этот функционал мы добавим на следующем этапе.</p>
-                    <div class="alert alert-info" role="alert">
-                        Пока здесь пусто. После реализации этапа с товарами вы сможете управлять своими предложениями.
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body p-4 text-center">
+                            <div class="mb-4" style="font-size: 4rem;">🎁</div>
+                            <h4 class="fw-bold mb-3">Мои товары</h4>
+                            <p class="text-muted mb-4">Управляйте вашими handmade-товарами в специальном разделе</p>
+
+                            {% if user.is_master %}
+                            <div class="d-flex justify-content-center gap-3 flex-wrap">
+                                <a href="{% url 'products:my_products' %}" class="btn btn-primary btn-lg px-4">
+                                    🛍️ Перейти к моим товарам
+                                </a>
+                                <a href="{% url 'products:product_add' %}" class="btn btn-outline-primary btn-lg px-4">
+                                    ➕ Добавить новый товар
+                                </a>
+                            </div>
+                            {% else %}
+                            <div class="alert alert-info">
+                                <h6>🎨 Станьте мастером!</h6>
+                                <p class="mb-2">Чтобы добавлять товары, нужно зарегистрироваться как мастер.</p>
+                                <a href="{% url 'users:edit_profile' %}" class="btn btn-primary btn-sm">
+                                    Изменить тип аккаунта
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
-                    <!-- Место для будущего списка товаров -->
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<style>
+    .nav-tabs .nav-link {
+        color: #6c757d;
+        border: none;
+        padding: 1rem 1.5rem;
+        font-weight: 500;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #8B4513;
+        border-bottom: 3px solid #8B4513;
+        background: transparent;
+    }
+
+    .nav-tabs .nav-link:hover {
+        color: #8B4513;
+        border-bottom: 3px solid #8B4513;
+    }
+
+    .btn-primary {
+        background-color: #8B4513;
+        border-color: #8B4513;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .btn-primary:hover {
+        background-color: #654321;
+        border-color: #654321;
+    }
+
+    .form-control,
+    .form-select {
+        border-radius: 10px;
+        padding: 0.75rem 1rem;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+        border-color: #8B4513;
+        box-shadow: 0 0 0 0.2rem rgba(139, 69, 19, 0.25);
+    }
+
+    .card {
+        border-radius: 15px;
+        border: none;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Счетчик символов для поля "О себе"
+        const bioField = document.getElementById('{{ profile_form.bio.id_for_label }}');
+        if (bioField) {
+            const counter = document.createElement('div');
+            counter.className = 'form-text text-end mt-1';
+            bioField.parentNode.appendChild(counter);
+
+            function updateCounter() {
+                const remaining = 500 - bioField.value.length;
+                counter.textContent = `${remaining} символов осталось`;
+                counter.style.color = remaining < 0 ? 'red' : '#6c757d';
+            }
+
+            bioField.addEventListener('input', updateCounter);
+            updateCounter();
+        }
+
+        // Предпросмотр аватара
+        const avatarInput = document.getElementById('{{ profile_form.avatar.id_for_label }}');
+        if (avatarInput) {
+            avatarInput.addEventListener('change', function (e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        const avatarImg = document.querySelector('.rounded-circle[alt*="Аватар"]');
+                        if (avatarImg) {
+                            avatarImg.src = e.target.result;
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+    });
+</script>
 {% endblock %}

@@ -16,8 +16,8 @@
 
         .footer {
             background-color: #f8f9fa;
-            padding: 1rem 0;
-            margin-top: 2rem;
+            padding: 2rem 0;
+            margin-top: 3rem;
         }
 
         .btn-primary {
@@ -112,6 +112,22 @@
             border: none;
             padding: 0;
             cursor: pointer;
+        }
+
+        /* Стили для футера */
+        .footer-links a {
+            color: #6c757d;
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: #8B4513;
+        }
+
+        .footer h6 {
+            color: #8B4513;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
@@ -291,15 +307,45 @@
     </main>
 
     <!-- Футер -->
-    <footer class="footer mt-auto py-3 bg-light">
+    <footer class="footer">
         <div class="container">
             <div class="row">
-                <div class="col-md-6">
-                    <h6 class="fw-bold">HandmadeMarket</h6>
-                    <p class="text-muted small mb-0">Площадка для уникальных handmade-товаров</p>
-                </div>
-                <div class="col-md-6 text-md-end">
+                <!-- О компании -->
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <h6 class="fw-bold">🎨 HandmadeMarket</h6>
+                    <p class="text-muted small mb-3">Площадка для уникальных handmade-товаров от талантливых мастеров
+                    </p>
                     <p class="text-muted small mb-0">&copy; 2024 HandmadeMarket. Все права защищены.</p>
+                </div>
+
+                <!-- Обязательные ссылки -->
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <h6 class="fw-bold">📋 Информация</h6>
+                    <ul class="list-unstyled small footer-links">
+                        <li class="mb-2"><a href="{% url 'pages:privacy_policy' %}">🔒 Политика конфиденциальности</a>
+                        </li>
+                        <li class="mb-2"><a href="{% url 'pages:terms_of_use' %}">📄 Условия использования</a></li>
+                        <li class="mb-2"><a href="{% url 'pages:contacts' %}">📞 Контакты</a></li>
+                    </ul>
+                </div>
+
+                <!-- Помощь и поддержка -->
+                <div class="col-lg-4 col-md-6 mb-4">
+                    <h6 class="fw-bold">❓ Помощь</h6>
+                    <ul class="list-unstyled small footer-links">
+                        <li class="mb-2"><a href="{% url 'pages:faq' %}">❓ Частые вопросы</a></li>
+                        <li class="mb-2"><a href="{% url 'pages:shipping' %}">🚚 Доставка и оплата</a></li>
+                        <li class="mb-2"><a href="{% url 'pages:returns' %}">↩️ Возвраты и обмен</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Дополнительная информация -->
+            <div class="row pt-3 border-top">
+                <div class="col-12 text-center">
+                    <p class="text-muted small mb-0">
+                        HandmadeMarket - это безопасная площадка для покупки и продажи уникальных товаров ручной работы
+                    </p>
                 </div>
             </div>
         </div>

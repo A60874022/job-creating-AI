@@ -241,7 +241,8 @@ class CustomPasswordResetCompleteView(PasswordResetCompleteView):
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from .forms import UserEditForm, ProfileEditForm
+from .forms import UserEditForm, ProfileEditForm,  AccountDeleteForm
+from django.contrib.auth import logout
 
 @login_required
 def edit_profile(request):
@@ -267,3 +268,29 @@ def edit_profile(request):
         'profile_form': profile_form,
     }
     return render(request, 'users/edit_profile.html', context)
+
+
+@login_required
+def delete_account(request):
+    if request.method == 'POST':
+        form = AccountDeleteForm(request.POST, user=request.user)
+        if form.is_valid():
+            # Сохраняем ссылку на пользователя до выхода
+            user_to_delete = request.user
+            user_email = user_to_delete.email
+            
+            # Выходим пользователя
+            logout(request)
+            
+            # Удаляем аккаунт (используем сохраненную ссылку)
+            user_to_delete.delete()
+            
+            messages.success(
+                request, 
+                f'Аккаунт {user_email} был успешно удален. Жаль, что вы уходите!'
+            )
+            return redirect('home')
+    else:
+        form = AccountDeleteForm(user=request.user)
+
+    return render(request, 'users/delete_account.html', {'form': form})

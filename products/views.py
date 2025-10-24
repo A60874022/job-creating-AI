@@ -7,6 +7,17 @@ from django.urls import reverse
 from .forms import ProductForm, ProductImageFormSet
 from .models import Product, Category  # Добавляем импорт Category
 
+
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.views.generic import CreateView, UpdateView, ListView, DeleteView
+from django.urls import reverse_lazy
+from django.shortcuts import redirect
+from django.contrib.auth.decorators import login_required
+from django.urls import reverse
+from django.contrib import messages
+from .forms import ProductForm, ProductImageFormSet
+from .models import Product, Category, Favorite
+
 class ProductCreateView(LoginRequiredMixin, CreateView):
     model = Product
     form_class = ProductForm
@@ -14,11 +25,9 @@ class ProductCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy('products:my_products')
     
     def form_valid(self, form):
-        # Привязываем товар к текущему пользователю (мастеру)
         form.instance.master = self.request.user
         response = super().form_valid(form)
         
-        # Обрабатываем загруженные изображения
         formset = ProductImageFormSet(self.request.POST, self.request.FILES, instance=self.object)
         if formset.is_valid():
             formset.save()
@@ -28,6 +37,12 @@ class ProductCreateView(LoginRequiredMixin, CreateView):
                 if first_image:
                     first_image.is_main = True
                     first_image.save()
+        else:
+            # Если форма изображений невалидна, добавляем ошибки
+            for form in formset:
+                for error in form.errors:
+                    messages.error(self.request, f"Ошибка в изображении: {error}")
+        
         return response
     
     def get_context_data(self, **kwargs):
@@ -45,7 +60,6 @@ class ProductUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
     success_url = reverse_lazy('products:my_products')
     
     def test_func(self):
-        # Проверяем, что пользователь является владельцем товара
         product = self.get_object()
         return self.request.user == product.master
     
@@ -54,6 +68,10 @@ class ProductUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         formset = ProductImageFormSet(self.request.POST, self.request.FILES, instance=self.object)
         if formset.is_valid():
             formset.save()
+        else:
+            for form in formset:
+                for error in form.errors:
+                    messages.error(self.request, f"Ошибка в изображении: {error}")
         return response
     
     def get_context_data(self, **kwargs):
@@ -61,9 +79,9 @@ class ProductUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
         if self.request.POST:
             context['formset'] = ProductImageFormSet(self.request.POST, self.request.FILES, instance=self.object)
         else:
+            # Замечание 22: Убедимся, что форма отображает существующие изображения
             context['formset'] = ProductImageFormSet(instance=self.object)
         return context
-
 
 
 class ProductDeleteView(LoginRequiredMixin, DeleteView):

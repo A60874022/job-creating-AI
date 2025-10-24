@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Часто задаваемые вопросы | HandmadeMarket{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <h1 class="fw-bold mb-4">❓ Часто задаваемые вопросы</h1>
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                    <div class="accordion" id="faqAccordion">
+
+                        <!-- Вопрос 1 -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingOne">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                                    Как зарегистрироваться на платформе?
+                                </button>
+                            </h2>
+                            <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne"
+                                data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    Для регистрации нажмите кнопку "Зарегистрироваться" в правом верхнем углу,
+                                    заполните форму и подтвердите email адрес.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Вопрос 2 -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingTwo">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                                    Как стать продавцом (мастером)?
+                                </button>
+                            </h2>
+                            <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo"
+                                data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    При регистрации отметьте галочку "Я мастер" или измените тип аккаунта
+                                    в настройках профиля после регистрации.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Вопрос 3 -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingThree">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+                                    Как добавить товар на продажу?
+                                </button>
+                            </h2>
+                            <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree"
+                                data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    После регистрации в качестве мастера в личном кабинете появится кнопка "Добавить
+                                    товар".
+                                    Заполните информацию о товаре и загрузите фотографии.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Вопрос 4 -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingFour">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
+                                    Как связаться с продавцом?
+                                </button>
+                            </h2>
+                            <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour"
+                                data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    На странице товара нажмите кнопку "Написать мастеру" чтобы начать диалог.
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Вопрос 5 -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingFive">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#collapseFive" aria-expanded="false" aria-controls="collapseFive">
+                                    Какие способы оплаты принимаются?
+                                </button>
+                            </h2>
+                            <div id="collapseFive" class="accordion-collapse collapse" aria-labelledby="headingFive"
+                                data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    Мы принимаем банковские карты, электронные кошельки и другие популярные способы
+                                    оплаты.
+                                    Конкретные варианты уточняйте у продавца.
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="mt-4 p-3 bg-light rounded">
+                        <h5>Не нашли ответ на свой вопрос?</h5>
+                        <p class="mb-2">Свяжитесь с нашей службой поддержки:</p>
+                        <a href="{% url 'pages:contacts' %}" class="btn btn-primary">📞 Связаться с поддержкой</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

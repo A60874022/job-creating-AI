@@ -9,14 +9,6 @@
         <div class="col-12">
             <h1 class="fw-bold mb-2">🛒 Корзина</h1>
 
-            <!-- Отладочная информация -->
-            <div class="alert alert-info">
-                <h4>Отладка корзины</h4>
-                <p>Количество элементов в корзине: {{ cart_items|length }}</p>
-                <p>Общая стоимость: {{ cart.total_price }}</p>
-                <p>Общее количество: {{ cart.total_quantity }}</p>
-            </div>
-
             {% if cart_items %}
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
@@ -37,7 +29,14 @@
                         <div class="col-md-4">
                             <h6 class="fw-bold mb-1">{{ item.product.title }}</h6>
                             <p class="text-muted small mb-1">{{ item.product.description|truncatewords:15 }}</p>
-                            <small class="text-muted">Мастер: {{ item.product.master.email }}</small>
+                            <small class="text-muted">
+                                Мастер:
+                                {% if item.product.master.get_full_name %}
+                                {{ item.product.master.get_full_name }}
+                                {% else %}
+                                {{ item.product.master.username }}
+                                {% endif %}
+                            </small>
                         </div>
 
                         <div class="col-md-3">

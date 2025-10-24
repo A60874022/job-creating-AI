@@ -148,7 +148,7 @@
                                         {{ favorite.product.description|truncatewords:10 }}
                                     </p>
 
-                                    <!-- Информация о мастере -->
+                                    <!-- Информация о мастере - ИСПРАВЛЕНО -->
                                     <div class="d-flex align-items-center mb-3">
                                         {% if favorite.product.master.profile.avatar %}
                                         <img src="{{ favorite.product.master.profile.avatar.url }}"
@@ -161,7 +161,14 @@
                                         </div>
                                         {% endif %}
                                         <div>
-                                            <small class="fw-bold d-block">{{ favorite.product.master.email }}</small>
+                                            <!-- Используем имя мастера вместо email -->
+                                            <small class="fw-bold d-block">
+                                                {% if favorite.product.master.get_full_name %}
+                                                {{ favorite.product.master.get_full_name }}
+                                                {% else %}
+                                                {{ favorite.product.master.username }}
+                                                {% endif %}
+                                            </small>
                                             {% if favorite.product.master.profile.city %}
                                             <small class="text-muted">{{ favorite.product.master.profile.city }}</small>
                                             {% endif %}

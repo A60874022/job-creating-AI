@@ -12,7 +12,7 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('verify-email/<str:token>/', views.verify_email, name='verify_email'),
     path('profile/', edit_profile, name='edit_profile'),
-    
+    path('delete-account/', views.delete_account, name='delete_account'),
     # Сброс пароля
     path('password-reset/', views.CustomPasswordResetView.as_view(), name='password_reset'),
     path('password-reset/done/', 

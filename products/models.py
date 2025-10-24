@@ -1,5 +1,7 @@
 from django.db import models
 from django.conf import settings
+from django.core.validators import MinValueValidator, RegexValidator
+from django.utils import timezone
 
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True, verbose_name="Название")
@@ -11,6 +13,12 @@ class Category(models.Model):
     
     def __str__(self):
         return self.name
+    
+    def save(self, *args, **kwargs):
+        # Замечание 17: Сохраняем название с заглавной буквы
+        if self.name:
+            self.name = self.name.capitalize()
+        super().save(*args, **kwargs)
 
 class Product(models.Model):
     master = models.ForeignKey(
@@ -26,12 +34,35 @@ class Product(models.Model):
         blank=True,
         verbose_name="Категория"
     )
-    title = models.CharField(max_length=60, verbose_name="Название")
-    description = models.TextField(max_length=300, verbose_name="Описание")
+    # Замечание 18: Ограничение только кириллицей
+    title = models.CharField(
+        max_length=60, 
+        verbose_name="Название",
+        validators=[
+            RegexValidator(
+                regex='^[а-яА-ЯёЁ0-9\s\-\!\.\(\)]+$',
+                message='Название должно содержать только кириллические символы, цифры и пробелы'
+            )
+        ]
+    )
+    description = models.TextField(
+        max_length=300, 
+        verbose_name="Описание",
+        validators=[
+            RegexValidator(
+                regex='^[а-яА-ЯёЁ0-9\s\-\!\.\(\)\,\:\;]+$',
+                message='Описание должно содержать только кириллические символы, цифры и знаки препинания'
+            )
+        ]
+    )
+    # Замечание 19: Валидация цены
     price = models.DecimalField(
         max_digits=10, 
         decimal_places=2, 
-        verbose_name="Цена"
+        verbose_name="Цена",
+        validators=[
+            MinValueValidator(1, message='Цена должна быть не менее 1 рубля')
+        ]
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
@@ -48,7 +79,11 @@ class Product(models.Model):
     def get_main_image(self):
         """Возвращает главное изображение товара"""
         try:
-            return self.images.filter(is_main=True).first() or self.images.first()
+            # Замечание 23: Исправляем получение основной фотографии
+            main_image = self.images.filter(is_main=True).first()
+            if main_image:
+                return main_image
+            return self.images.first()
         except:
             return None
     
@@ -74,7 +109,13 @@ class ProductImage(models.Model):
     
     def __str__(self):
         return f"Изображение {self.product.title}"
-
+    
+    def save(self, *args, **kwargs):
+        # Замечание 21: Ограничиваем одну основную фотографию
+        if self.is_main:
+            # Снимаем флаг is_main у всех других изображений этого товара
+            ProductImage.objects.filter(product=self.product, is_main=True).exclude(pk=self.pk).update(is_main=False)
+        super().save(*args, **kwargs)
 
 class Favorite(models.Model):
     user = models.ForeignKey(
@@ -92,7 +133,7 @@ class Favorite(models.Model):
     class Meta:
         verbose_name = "Избранное"
         verbose_name_plural = "Избранные товары"
-        unique_together = ['user', 'product']  # один товар можно добавить в избранное один раз
+        unique_together = ['user', 'product']
     
     def __str__(self):
         return f"{self.user.email} - {self.product.title}"

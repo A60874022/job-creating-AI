@@ -216,11 +216,45 @@ class ProfileEditForm(forms.ModelForm):
         model = Profile
         fields = ('avatar', 'bio', 'city')
         widgets = {
-            'bio': forms.Textarea(attrs={'rows': 4, 'placeholder': 'Расскажите о себе и своем творчестве...'}),
-            'city': forms.TextInput(attrs={'placeholder': 'Ваш город'}),
+            'bio': forms.Textarea(attrs={
+                'rows': 4, 
+                'placeholder': 'Расскажите о себе и своем творчестве...',
+                'class': 'form-control'
+            }),
+            'city': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Введите ваш город'
+            }),
+            'avatar': forms.FileInput(attrs={'class': 'form-control'}),
         }
         labels = {
             'avatar': 'Аватар профиля',
             'bio': 'О себе',
             'city': 'Город',
         }
+
+
+class AccountDeleteForm(forms.Form):
+    confirm = forms.BooleanField(
+        required=True,
+        widget=forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        label="Я понимаю, что это действие нельзя отменить"
+    )
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control', 
+            'placeholder': 'Введите ваш пароль для подтверждения'
+        }),
+        label="Текущий пароль",
+        required=True
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)  # Извлекаем user из kwargs
+        super().__init__(*args, **kwargs)
+
+    def clean_password(self):
+        password = self.cleaned_data.get('password')
+        if self.user and not self.user.check_password(password):
+            raise forms.ValidationError('Неверный пароль')
+        return password
