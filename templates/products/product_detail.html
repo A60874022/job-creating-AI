@@ -149,29 +149,37 @@
                             </button>
                         </form>
 
-                        <!-- Кнопка избранного -->
-                        {% if user.is_authenticated %}
-                        {% if product in user.favorites.all %}
-                        <form method="post" action="{% url 'products:remove_from_favorites' product.id %}" class="ms-2">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-danger btn-lg" title="Удалить из избранного">
-                                ❤️
+                        <!-- Кнопка избранного - ИСПРАВЛЕННАЯ ВЕРСИЯ -->
+                        <div class="favorite-section ms-2">
+                            {% if user.is_authenticated %}
+                            {% if is_own_product %}
+                            <button class="btn btn-outline-secondary btn-lg" disabled title="Это ваш товар">
+                                ⭐ Ваш товар
                             </button>
-                        </form>
-                        {% else %}
-                        <form method="post" action="{% url 'products:add_to_favorites' product.id %}" class="ms-2">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-secondary btn-lg" title="Добавить в избранное">
-                                🤍
-                            </button>
-                        </form>
-                        {% endif %}
-                        {% else %}
-                        <a href="{% url 'users:login' %}?next={{ request.path }}"
-                            class="btn btn-outline-secondary btn-lg ms-2" title="Войдите, чтобы добавить в избранное">
-                            🤍
-                        </a>
-                        {% endif %}
+                            {% elif is_in_favorites %}
+                            <form method="post"
+                                action="{% url 'products:remove_from_favorites_by_product' product.id %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-danger btn-lg" title="Удалить из избранного">
+                                    ❤️ В избранном
+                                </button>
+                            </form>
+                            {% else %}
+                            <form method="post" action="{% url 'products:add_to_favorites' product.id %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-primary btn-lg"
+                                    title="Добавить в избранное">
+                                    🤍 В избранное
+                                </button>
+                            </form>
+                            {% endif %}
+                            {% else %}
+                            <a href="{% url 'users:login' %}?next={{ request.path }}"
+                                class="btn btn-outline-primary btn-lg" title="Войдите, чтобы добавить в избранное">
+                                🤍 В избранное
+                            </a>
+                            {% endif %}
+                        </div>
                     </div>
 
                     <!-- Дополнительные кнопки -->
@@ -312,5 +320,39 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(139, 69, 19, 0.2);
     }
+
+    /* Стили для кнопок избранного */
+    .favorite-section .btn {
+        min-width: 140px;
+    }
 </style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Обработка сообщений после действий с избранным
+        const urlParams = new URLSearchParams(window.location.search);
+        const message = urlParams.get('message');
+        const messageType = urlParams.get('message_type');
+
+        if (message) {
+            showMessage(message, messageType);
+        }
+
+        function showMessage(message, type = 'success') {
+            const alertClass = type === 'error' ? 'alert-danger' : 'alert-success';
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert ${alertClass} alert-dismissible fade show mt-3`;
+            alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+
+            // Вставляем сообщение перед кнопками действий
+            const actionButtons = document.querySelector('.d-grid.gap-2.d-md-flex.mb-4');
+            if (actionButtons) {
+                actionButtons.parentNode.insertBefore(alertDiv, actionButtons);
+            }
+        }
+    });
+</script>
 {% endblock %}

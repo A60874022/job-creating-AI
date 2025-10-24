@@ -124,6 +124,16 @@ class ProductCatalogView(ListView):
         context['categories'] = Category.objects.all()
         context['selected_category'] = self.request.GET.get('category', '')
         context['search_query'] = self.request.GET.get('q', '')
+        
+        # Добавляем информацию об избранных товарах пользователя
+        if self.request.user.is_authenticated:
+            user_favorites = Favorite.objects.filter(
+                user=self.request.user
+            ).values_list('product_id', flat=True)
+            context['user_favorites'] = set(user_favorites)
+        else:
+            context['user_favorites'] = set()
+            
         return context
 
 
@@ -140,6 +150,23 @@ class ProductDetailView(DetailView):
     
     def get_queryset(self):
         return Product.objects.filter(is_active=True).select_related('master')
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        product = self.object
+        
+        # Проверяем, добавлен ли товар в избранное текущего пользователя
+        if self.request.user.is_authenticated:
+            context['is_in_favorites'] = Favorite.objects.filter(
+                user=self.request.user, 
+                product=product
+            ).exists()
+            context['is_own_product'] = product.master == self.request.user
+        else:
+            context['is_in_favorites'] = False
+            context['is_own_product'] = False
+            
+        return context
 
 
 
@@ -174,6 +201,11 @@ def add_to_favorites(request, product_id):
     """Добавление товара в избранное"""
     product = get_object_or_404(Product, id=product_id, is_active=True)
     
+    # Замечание 16: Запрещаем добавлять собственные товары
+    if product.master == request.user:
+        messages.error(request, 'Вы не можете добавить в избранное свой собственный товар')
+        return redirect(request.META.get('HTTP_REFERER', 'catalog'))
+    
     # Проверяем, нет ли уже в избранном
     favorite, created = Favorite.objects.get_or_create(
         user=request.user,
@@ -197,3 +229,15 @@ def remove_from_favorites(request, favorite_id):
     messages.success(request, f'Товар "{product_title}" удален из избранного')
     # Корректный редирект с параметрами
     return redirect(f"{reverse('products:customer_profile')}?tab=favorites")
+
+
+@login_required
+def remove_from_favorites_by_product(request, product_id):
+    """Удаление товара из избранного по product_id"""
+    product = get_object_or_404(Product, id=product_id)
+    favorite = get_object_or_404(Favorite, user=request.user, product=product)
+    product_title = favorite.product.title
+    favorite.delete()
+    
+    messages.success(request, f'Товар "{product_title}" удален из избранного')
+    return redirect(request.META.get('HTTP_REFERER', 'catalog'))
