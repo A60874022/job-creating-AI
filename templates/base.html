@@ -73,12 +73,6 @@
             background-color: #f8f9fa;
         }
 
-        /* Стили для уведомлений */
-        .alert {
-            border-radius: 10px;
-            border: none;
-        }
-
         /* Стили для активной навигации */
         .nav-link.active {
             color: #8B4513 !important;
@@ -89,29 +83,6 @@
         .unread-badge {
             font-size: 0.7rem;
             margin-left: 5px;
-        }
-
-        /* Стили для выпадающего меню уведомлений */
-        .notification-dropdown {
-            width: 400px;
-            max-height: 500px;
-            overflow-y: auto;
-        }
-
-        .notification-item {
-            white-space: normal;
-            word-wrap: break-word;
-        }
-
-        .notification-badge {
-            font-size: 0.7em;
-        }
-
-        .notification-read-btn {
-            background: none;
-            border: none;
-            padding: 0;
-            cursor: pointer;
         }
 
         /* Стили для футера */
@@ -146,75 +117,6 @@
 
                 <div class="navbar-nav ms-auto">
                     {% if user.is_authenticated %}
-                    <!-- Уведомления -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link position-relative" href="#" id="notificationsDropdown" role="button"
-                            data-bs-toggle="dropdown" aria-expanded="false">
-                            🔔 Уведомления
-                            {% if unread_notifications_count and unread_notifications_count > 0 %}
-                            <span
-                                class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger notification-badge">
-                                {{ unread_notifications_count }}
-                                <span class="visually-hidden">непрочитанные уведомления</span>
-                            </span>
-                            {% endif %}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end notification-dropdown"
-                            aria-labelledby="notificationsDropdown">
-                            {% if unread_notifications %}
-                            {% for notification in unread_notifications %}
-                            <li>
-                                <div
-                                    class="dropdown-item notification-item {% if not notification.is_read %}bg-light{% endif %}">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div class="flex-grow-1 me-2">
-                                            <h6 class="fw-bold mb-1">{{ notification.title }}</h6>
-                                            <p class="small text-muted mb-1">{{ notification.message }}</p>
-                                            <small class="text-muted">{{ notification.created_at|date:"d.m.Y H:i"
-                                                }}</small>
-                                        </div>
-                                        <form method="post"
-                                            action="{% url 'notifications:mark_as_read' notification.id %}"
-                                            class="notification-form">
-                                            {% csrf_token %}
-                                            <button type="submit" class="notification-read-btn btn-close"
-                                                aria-label="Прочитано"></button>
-                                        </form>
-                                    </div>
-                                    {% if notification.action_url %}
-                                    <div class="mt-2">
-                                        <a href="{{ notification.action_url }}"
-                                            class="btn btn-outline-primary btn-sm w-100">
-                                            Перейти
-                                        </a>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </li>
-                            {% if not forloop.last %}
-                            <li>
-                                <hr class="dropdown-divider m-0">
-                            </li>
-                            {% endif %}
-                            {% endfor %}
-                            <li>
-                                <div class="dropdown-item text-center pt-2">
-                                    <a href="{% url 'notifications:notification_list' %}"
-                                        class="btn btn-primary btn-sm">
-                                        Все уведомления
-                                    </a>
-                                </div>
-                            </li>
-                            {% else %}
-                            <li>
-                                <div class="dropdown-item text-center py-3">
-                                    <div class="text-muted">Нет новых уведомлений</div>
-                                </div>
-                            </li>
-                            {% endif %}
-                        </ul>
-                    </li>
-
                     <!-- Меню для авторизованных пользователей -->
                     <div class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
@@ -404,45 +306,6 @@
                     item.style.backgroundColor = '#f8f9fa';
                     item.style.color = '#8B4513';
                 }
-            });
-
-            // AJAX для пометки уведомлений как прочитанных
-            document.querySelectorAll('.notification-form').forEach(form => {
-                form.addEventListener('submit', function (e) {
-                    e.preventDefault();
-
-                    const formData = new FormData(this);
-                    const notificationItem = this.closest('.dropdown-item');
-
-                    fetch(this.action, {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                        },
-                    })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                // Удаляем визуальные индикаторы непрочитанного
-                                notificationItem.classList.remove('bg-light');
-
-                                // Обновляем счетчик непрочитанных
-                                const badge = document.querySelector('.notification-badge');
-                                if (badge) {
-                                    const currentCount = parseInt(badge.textContent);
-                                    if (currentCount > 1) {
-                                        badge.textContent = currentCount - 1;
-                                    } else {
-                                        badge.remove();
-                                    }
-                                }
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                        });
-                });
             });
 
             // Функции для работы с WebSocket (глобальные)

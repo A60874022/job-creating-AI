@@ -2,6 +2,18 @@ from django import forms
 from django.core.validators import MinValueValidator, RegexValidator
 from .models import Product, ProductImage
 
+from django import forms
+from django.core.validators import MinValueValidator, MaxValueValidator
+from .models import Product, ProductImage
+
+from django import forms
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
+from .models import Product, ProductImage
+
+from django import forms
+from django.core.validators import RegexValidator
+from .models import Product, ProductImage
+
 class ProductForm(forms.ModelForm):
     class Meta:
         model = Product
@@ -10,18 +22,20 @@ class ProductForm(forms.ModelForm):
             'category': forms.Select(attrs={'class': 'form-select'}),
             'title': forms.TextInput(attrs={
                 'class': 'form-control',
-                'placeholder': 'Например: Вязаная шерстяная шапка'
+                'placeholder': 'Например: Вязаная шерстяная шапка',
+                'maxlength': '60'
             }),
             'description': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 4,
-                'placeholder': 'Опишите ваш товар, материалы, размеры...'
+                'placeholder': 'Опишите ваш товар, материалы, размеры...',
+                'maxlength': '300'
             }),
-            'price': forms.NumberInput(attrs={
+            # ИЗМЕНЕНО: NumberInput на TextInput для снятия ограничений браузера
+            'price': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': '0',
-                'min': '1',
-                'step': '1'
+                'inputmode': 'numeric',  # Показывает цифровую клавиатуру на мобильных
             }),
         }
     
@@ -40,19 +54,40 @@ class ProductForm(forms.ModelForm):
                 message='Описание должно содержать только кириллические символы, цифры и знаки препинания'
             )
         )
-        # Замечание 19: Добавляем валидатор цены
-        self.fields['price'].validators.append(
-            MinValueValidator(1, message='Цена должна быть не менее 1 рубля')
-        )
     
     def clean_price(self):
         price = self.cleaned_data.get('price')
-        if price and price < 1:
+        if price is None or price == '':
+            raise forms.ValidationError('Введите цену товара')
+            
+        try:
+            # Преобразуем строку в число
+            price_int = int(price)
+        except (ValueError, TypeError):
+            raise forms.ValidationError('Введите корректную цену (только цифры)')
+            
+        # Проверяем границы цены
+        if price_int < 1:
             raise forms.ValidationError('Цена должна быть не менее 1 рубля')
-        # Замечание 19: Округляем до целых чисел
-        if price:
-            return round(price)
-        return price
+        
+        if price_int > 5000000:
+            raise forms.ValidationError('Цена не может превышать 5 000 000 рублей')
+        
+        return price_int
+    
+    def clean_title(self):
+        title = self.cleaned_data.get('title')
+        if title:
+            if len(title) > 60:
+                raise forms.ValidationError('Название не может превышать 60 символов')
+        return title
+    
+    def clean_description(self):
+        description = self.cleaned_data.get('description')
+        if description:
+            if len(description) > 300:
+                raise forms.ValidationError('Описание не может превышать 300 символов')
+        return description
 
 class ProductImageForm(forms.ModelForm):
     class Meta:

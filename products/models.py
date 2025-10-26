@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
-from django.core.validators import MinValueValidator, RegexValidator
+from django.core.validators import MinValueValidator, RegexValidator, MaxValueValidator
+
 from django.utils import timezone
 
 class Category(models.Model):
@@ -21,6 +22,8 @@ class Category(models.Model):
         super().save(*args, **kwargs)
 
 class Product(models.Model):
+    MAX_PRICE = 5000000  
+
     master = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
@@ -61,7 +64,8 @@ class Product(models.Model):
         decimal_places=2, 
         verbose_name="Цена",
         validators=[
-            MinValueValidator(1, message='Цена должна быть не менее 1 рубля')
+            MinValueValidator(1, message='Цена должна быть не менее 1 рубля'),
+            MaxValueValidator(MAX_PRICE, message=f'Цена не может превышать {MAX_PRICE:,} рублей')
         ]
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")

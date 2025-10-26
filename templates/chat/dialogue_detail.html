@@ -2,8 +2,7 @@
 {% load static %}
 
 {% block title %}
-Чат с {% if user.is_master %}{{ dialogue.customer.email }}{% else %}{{ dialogue.master.email }}{% endif %} |
-HandmadeMarket
+Чат с {{ interlocutor.get_full_name|default:interlocutor.email }} | HandmadeMarket
 {% endblock %}
 
 {% block content %}
@@ -20,12 +19,7 @@ HandmadeMarket
                             </a>
                             <div>
                                 <h4 class="fw-bold mb-0">
-                                    💬 Чат с
-                                    {% if user.is_master %}
-                                    {{ dialogue.customer.get_full_name|default:dialogue.customer.email }}
-                                    {% else %}
-                                    {{ dialogue.master.get_full_name|default:dialogue.master.email }}
-                                    {% endif %}
+                                    💬 Чат с {{ interlocutor.get_full_name|default:interlocutor.email }}
                                 </h4>
                                 {% if dialogue.product %}
                                 <p class="text-muted mb-0">
@@ -228,6 +222,7 @@ HandmadeMarket
     const currentUserId = {{ user.id }};
     const currentUserEmail = "{{ user.email }}";
     const isMaster = {% if user.is_master %}true{% else %} false{% endif %};
+    const interlocutorName = "{{ interlocutor.get_full_name|default:interlocutor.email }}";
 
     // Элементы DOM
     const chatMessages = document.getElementById('chat-messages');
@@ -239,6 +234,40 @@ HandmadeMarket
     // WebSocket соединение
     let chatSocket = null;
 
+    // Функция для пометки сообщений как прочитанных
+    function markMessagesAsRead() {
+        fetch(`/chat/${dialogueId}/mark-read/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log(`Помечено ${data.updated_count} сообщений как прочитанные`);
+                    // Обновляем счетчик непрочитанных в реальном времени
+                    updateUnreadCounter();
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при пометке сообщений как прочитанных:', error);
+            });
+    }
+
+    // Функция для обновления счетчика непрочитанных
+    function updateUnreadCounter() {
+        // Отправляем запрос на обновление счетчика в списке диалогов
+        fetch('/chat/')
+            .then(response => response.text())
+            .then(html => {
+                // Можно добавить логику для обновления глобального счетчика, если он есть
+                console.log('Счетчик непрочитанных обновлен');
+            });
+    }
+
     function connectWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         chatSocket = new WebSocket(
@@ -248,12 +277,20 @@ HandmadeMarket
         chatSocket.onopen = function (e) {
             console.log('WebSocket connected');
             updateConnectionStatus('🟢 Online', 'success');
+
+            // При подключении помечаем все сообщения как прочитанные
+            markMessagesAsRead();
         };
 
         chatSocket.onmessage = function (e) {
             const data = JSON.parse(e.data);
             addMessageToChat(data);
             scrollToBottom();
+
+            // Если сообщение от собеседника, помечаем его как прочитанное
+            if (data.sender_id != currentUserId) {
+                markMessagesAsRead();
+            }
         };
 
         chatSocket.onclose = function (e) {
@@ -329,7 +366,7 @@ HandmadeMarket
 
     function addMessageToChat(data) {
         const isOwn = data.sender_id == currentUserId;
-        const messageTime = formatTime(data.timestamp);
+        const messageTime = data.created_at ? formatTime(data.created_at) : formatTime(new Date());
         const senderName = isOwn ? '👤 Вы' : (isMaster ? '👤 Покупатель' : '🎨 Мастер');
 
         const messageElement = document.createElement('div');
@@ -357,6 +394,12 @@ HandmadeMarket
 
         chatMessages.appendChild(messageElement);
         scrollToBottom();
+
+        // Убираем пустое состояние, если оно есть
+        const emptyState = chatMessages.querySelector('.text-center');
+        if (emptyState) {
+            emptyState.remove();
+        }
     }
 
     function scrollToBottom() {
@@ -379,6 +422,10 @@ HandmadeMarket
 
     // Автопрокрутка при загрузке
     document.addEventListener('DOMContentLoaded', function () {
+        // Помечаем сообщения как прочитанные при загрузке страницы
+        markMessagesAsRead();
+
+        // Подключаем WebSocket
         connectWebSocket();
         scrollToBottom();
 
@@ -390,6 +437,11 @@ HandmadeMarket
     document.addEventListener('visibilitychange', function () {
         if (!document.hidden && chatSocket && chatSocket.readyState === WebSocket.CLOSED) {
             connectWebSocket();
+        }
+
+        // При возвращении на вкладку помечаем сообщения как прочитанные
+        if (!document.hidden) {
+            markMessagesAsRead();
         }
     });
 </script>

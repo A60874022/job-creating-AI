@@ -58,7 +58,7 @@
                                             🎨
                                             {% endif %}
                                         </div>
-                                        {% if dialogue.unread_messages_count %}
+                                        {% if dialogue.unread_messages_count > 0 %}
                                         <span
                                             class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
                                             {{ dialogue.unread_messages_count }}

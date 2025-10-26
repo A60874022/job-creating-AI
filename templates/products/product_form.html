@@ -21,6 +21,15 @@
                     <form method="post" enctype="multipart/form-data" id="product-form">
                         {% csrf_token %}
 
+                        <!-- Вывод общих ошибок формы -->
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            <div>{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
                         <!-- Основная информация -->
                         <div class="mb-4">
                             <h5 class="fw-bold mb-3 text-brown">📋 Основная информация</h5>
@@ -29,33 +38,53 @@
                                     <label for="{{ form.category.id_for_label }}" class="form-label">Категория</label>
                                     {{ form.category }}
                                     {% if form.category.errors %}
-                                    <div class="text-danger">{{ form.category.errors }}</div>
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.category.errors %}
+                                        <div>{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
                                     {% endif %}
                                 </div>
                                 <div class="col-md-6">
                                     <label for="{{ form.price.id_for_label }}" class="form-label">Цена (руб.)</label>
-                                    {{ form.price }}
+                                    <div class="price-input-container">
+                                        {{ form.price }}
+                                        <span class="price-suffix">₽</span>
+                                    </div>
                                     {% if form.price.errors %}
-                                    <div class="text-danger">{{ form.price.errors }}</div>
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.price.errors %}
+                                        <div>{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
                                     {% endif %}
-                                    <div class="form-text">Целое число, не менее 1 рубля</div>
+                                    <div class="form-text">Целое число от 1 до 5 000 000 рублей</div>
                                 </div>
                                 <div class="col-12">
                                     <label for="{{ form.title.id_for_label }}" class="form-label">Название
                                         товара</label>
                                     {{ form.title }}
                                     {% if form.title.errors %}
-                                    <div class="text-danger">{{ form.title.errors }}</div>
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.title.errors %}
+                                        <div>{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
                                     {% endif %}
-                                    <div class="form-text">Максимум 60 символов, только кириллица</div>
+                                    <div class="form-text">Максимум 60 символов, только кириллица, цифры и пробелы</div>
                                 </div>
                                 <div class="col-12">
                                     <label for="{{ form.description.id_for_label }}" class="form-label">Описание</label>
                                     {{ form.description }}
                                     {% if form.description.errors %}
-                                    <div class="text-danger">{{ form.description.errors }}</div>
+                                    <div class="text-danger small mt-1">
+                                        {% for error in form.description.errors %}
+                                        <div>{{ error }}</div>
+                                        {% endfor %}
+                                    </div>
                                     {% endif %}
-                                    <div class="form-text">Максимум 300 символов, только кириллица</div>
+                                    <div class="form-text">Максимум 300 символов, только кириллица, цифры и знаки
+                                        препинания</div>
                                 </div>
                             </div>
                         </div>
@@ -75,13 +104,24 @@
                                             <label class="form-label">Изображение</label>
                                             {{ image_form.image }}
                                             {% if image_form.instance.image %}
-                                            <!-- Замечание 22: Показываем существующие изображения -->
                                             <div class="mt-2">
                                                 <small>Текущее: </small>
                                                 <img src="{{ image_form.instance.image.url }}" alt="Current image"
-                                                    style="max-width: 100px; max-height: 100px;">
-                                                {{ image_form.DELETE }} <label
-                                                    for="{{ image_form.DELETE.id_for_label }}">Удалить</label>
+                                                    style="max-width: 100px; max-height: 100px;" class="img-thumbnail">
+                                                <div class="form-check mt-1">
+                                                    {{ image_form.DELETE }}
+                                                    <label class="form-check-label"
+                                                        for="{{ image_form.DELETE.id_for_label }}">
+                                                        Удалить
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            {% endif %}
+                                            {% if image_form.image.errors %}
+                                            <div class="text-danger small mt-1">
+                                                {% for error in image_form.image.errors %}
+                                                <div>{{ error }}</div>
+                                                {% endfor %}
                                             </div>
                                             {% endif %}
                                         </div>
@@ -96,8 +136,13 @@
                                         </div>
                                         <div class="col-md-2">
                                             {% if image_form.instance.pk %}
-                                            {{ image_form.DELETE }} <label
-                                                for="{{ image_form.DELETE.id_for_label }}">Удалить</label>
+                                            <div class="form-check">
+                                                {{ image_form.DELETE }}
+                                                <label class="form-check-label"
+                                                    for="{{ image_form.DELETE.id_for_label }}">
+                                                    Удалить
+                                                </label>
+                                            </div>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -114,7 +159,6 @@
                             <button type="submit" class="btn btn-primary btn-lg px-4">
                                 💾 {% if object %}Сохранить изменения{% else %}Добавить товар{% endif %}
                             </button>
-                            <!-- Замечание 24: Кнопка отмены -->
                             {% if object %}
                             <a href="{% url 'products:product_detail' object.pk %}"
                                 class="btn btn-outline-secondary btn-lg px-4">
@@ -177,44 +221,131 @@
         border-radius: 15px;
         border: none;
     }
+
+    .text-danger.small {
+        font-size: 0.875em;
+        margin-top: 0.25rem;
+    }
+
+    .price-input-container {
+        position: relative;
+    }
+
+    .price-suffix {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        font-weight: 500;
+        pointer-events: none;
+    }
+
+    .char-counter {
+        font-size: 0.875em;
+    }
+
+    .is-invalid {
+        border-color: #dc3545 !important;
+    }
+
+    .price-limit-info {
+        font-size: 0.8em;
+        color: #6c757d;
+        margin-top: 2px;
+    }
 </style>
 
 <script>
-    // Динамическое обновление счетчиков символов
     document.addEventListener('DOMContentLoaded', function () {
+        // Константы для валидации цены
+        const MIN_PRICE = 1;
+        const MAX_PRICE = 5000000;
+        const MAX_DIGITS = 7; // Максимум 7 цифр (для 5 000 000)
+
+        // Функция для форматирования чисел с разделителями тысяч
+        function formatNumber(number) {
+            return number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+        }
+
+        // Функция для парсинга отформатированного числа
+        function parseFormattedNumber(formattedNumber) {
+            return parseInt(formattedNumber.replace(/\s/g, '')) || 0;
+        }
+
+        // Элементы формы
         const titleField = document.getElementById('{{ form.title.id_for_label }}');
         const descriptionField = document.getElementById('{{ form.description.id_for_label }}');
+        const priceField = document.getElementById('{{ form.price.id_for_label }}');
+        const productForm = document.getElementById('product-form');
 
+        // Функция для обновления счетчиков символов
         function updateCounter(field, maxLength) {
-            const counter = field.parentNode.querySelector('.char-counter') ||
-                document.createElement('div');
-            counter.className = 'form-text char-counter';
-            if (!field.parentNode.querySelector('.char-counter')) {
+            let counter = field.parentNode.querySelector('.char-counter');
+            if (!counter) {
+                counter = document.createElement('div');
+                counter.className = 'form-text char-counter';
                 field.parentNode.appendChild(counter);
             }
 
-            const remaining = maxLength - field.value.length;
-            counter.textContent = `${remaining} символов осталось`;
-            counter.style.color = remaining < 0 ? 'red' : '#6c757d';
+            const currentLength = field.value.length;
+            const remaining = maxLength - currentLength;
+            counter.textContent = `${currentLength}/${maxLength} символов (осталось: ${remaining})`;
+            counter.style.color = remaining < 0 ? 'red' : (remaining < 10 ? 'orange' : '#6c757d');
+
+            // Подсвечиваем поле если превышен лимит
+            if (remaining < 0) {
+                field.classList.add('is-invalid');
+            } else {
+                field.classList.remove('is-invalid');
+            }
         }
 
+        // Функция для валидации кириллицы
+        function validateCyrillic(field, fieldType) {
+            const value = field.value;
+            let regex;
+
+            if (fieldType === 'title') {
+                regex = /^[а-яА-ЯёЁ0-9\s\-\!\.\(\)]*$/;
+            } else {
+                regex = /^[а-яА-ЯёЁ0-9\s\-\!\.\(\)\,\:\;]*$/;
+            }
+
+            if (!regex.test(value)) {
+                field.classList.add('is-invalid');
+                return false;
+            } else {
+                field.classList.remove('is-invalid');
+                return true;
+            }
+        }
+
+        // Инициализация счетчиков символов и валидации
         if (titleField) {
-            titleField.addEventListener('input', () => updateCounter(titleField, 60));
+            titleField.addEventListener('input', function () {
+                updateCounter(this, 60);
+                validateCyrillic(this, 'title');
+            });
             updateCounter(titleField, 60);
+            validateCyrillic(titleField, 'title');
         }
 
         if (descriptionField) {
-            descriptionField.addEventListener('input', () => updateCounter(descriptionField, 300));
+            descriptionField.addEventListener('input', function () {
+                updateCounter(this, 300);
+                validateCyrillic(this, 'description');
+            });
             updateCounter(descriptionField, 300);
+            validateCyrillic(descriptionField, 'description');
         }
 
-        // Замечание 21: Ограничение выбора одной основной фотографии
-        const mainCheckboxes = document.querySelectorAll('.main-image-checkbox');
+        // Ограничение выбора одной основной фотографии
+        const mainCheckboxes = document.querySelectorAll('input[name$="-is_main"]');
 
         mainCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', function () {
                 if (this.checked) {
-                    // Снимаем выделение с других чекбоксов
                     mainCheckboxes.forEach(otherCheckbox => {
                         if (otherCheckbox !== this) {
                             otherCheckbox.checked = false;
@@ -224,19 +355,209 @@
             });
         });
 
-        // Замечание 19: Ограничение ввода цены
-        const priceField = document.getElementById('{{ form.price.id_for_label }}');
+        // ВАЛИДАЦИЯ ЦЕНЫ - ИСПРАВЛЕННАЯ ВЕРСИЯ
         if (priceField) {
+            // ПРИНУДИТЕЛЬНО УБИРАЕМ ВСЕ ОГРАНИЧЕНИЯ БРАУЗЕРА
+            priceField.removeAttribute('maxlength');
+            priceField.removeAttribute('max');
+            priceField.removeAttribute('min');
+
+            // Устанавливаем тип text чтобы обойти ограничения number input
+            priceField.setAttribute('type', 'text');
+            priceField.setAttribute('inputmode', 'numeric');
+
+            // Добавляем информационное сообщение о лимите
+            const limitInfo = document.createElement('div');
+            limitInfo.className = 'price-limit-info';
+            limitInfo.textContent = `Можно ввести до ${MAX_DIGITS} цифр`;
+            priceField.parentNode.parentNode.appendChild(limitInfo);
+
+            // Обработчик ввода - форматирование с разделителями тысяч
             priceField.addEventListener('input', function () {
-                let value = parseFloat(this.value);
-                if (isNaN(value)) {
+                let value = this.value.replace(/\s/g, ''); // Убираем пробелы
+
+                // Разрешаем только цифры
+                value = value.replace(/\D/g, '');
+
+                // Ограничиваем количество цифр до 7 (для 5 000 000)
+                if (value.length > MAX_DIGITS) {
+                    value = value.substring(0, MAX_DIGITS);
+                    // Показываем уведомление о достижении лимита
+                    showPriceInfo(`Достигнут лимит в ${MAX_DIGITS} цифр`);
+                }
+
+                let numericValue = parseInt(value);
+
+                if (isNaN(numericValue)) {
                     this.value = '';
-                } else if (value < 1) {
-                    this.value = 1;
-                } else {
-                    this.value = Math.round(value); // Округляем до целого
+                    return;
+                }
+
+                // Проверяем границы
+                if (numericValue < MIN_PRICE) {
+                    numericValue = MIN_PRICE;
+                } else if (numericValue > MAX_PRICE) {
+                    numericValue = MAX_PRICE;
+                }
+
+                // Форматируем с разделителями тысяч
+                this.value = formatNumber(numericValue);
+            });
+
+            // Обработчик потери фокуса - убираем разделители для отправки
+            priceField.addEventListener('blur', function () {
+                const numericValue = parseFormattedNumber(this.value);
+                if (!isNaN(numericValue) && numericValue > 0) {
+                    this.value = numericValue;
                 }
             });
+
+            // Обработчик получения фокуса - добавляем разделители для чтения
+            priceField.addEventListener('focus', function () {
+                const numericValue = parseFormattedNumber(this.value);
+                if (!isNaN(numericValue) && numericValue > 0) {
+                    this.value = formatNumber(numericValue);
+                }
+            });
+
+            // Обработчик для клавиш - разрешаем ввод любых цифр
+            priceField.addEventListener('keydown', function (e) {
+                // Разрешаем: цифры, Backspace, Delete, Tab, стрелки, пробелы
+                if (
+                    (e.key >= '0' && e.key <= '9') ||
+                    e.key === 'Backspace' ||
+                    e.key === 'Delete' ||
+                    e.key === 'Tab' ||
+                    e.key === 'ArrowLeft' ||
+                    e.key === 'ArrowRight' ||
+                    e.key === 'Home' ||
+                    e.key === 'End' ||
+                    e.key === ' '  // пробел для форматирования
+                ) {
+                    return; // Разрешаем эти клавиши
+                }
+
+                // Запрещаем все остальные клавиши
+                e.preventDefault();
+            });
+
+            // Валидация при отправке формы
+            productForm.addEventListener('submit', function (e) {
+                let hasErrors = false;
+
+                // Валидация цены
+                const numericValue = parseFormattedNumber(priceField.value);
+                if (isNaN(numericValue) || numericValue === 0) {
+                    showPriceError('Введите корректную цену');
+                    priceField.focus();
+                    hasErrors = true;
+                } else if (numericValue < MIN_PRICE) {
+                    showPriceError('Цена должна быть не менее 1 рубля');
+                    priceField.focus();
+                    hasErrors = true;
+                } else if (numericValue > MAX_PRICE) {
+                    showPriceError(`Цена не может превышать ${formatNumber(MAX_PRICE)} рублей`);
+                    priceField.focus();
+                    hasErrors = true;
+                }
+
+                // Валидация названия
+                if (titleField && !validateCyrillic(titleField, 'title')) {
+                    showFieldError(titleField, 'Название должно содержать только кириллические символы, цифры и пробелы');
+                    if (!hasErrors) {
+                        titleField.focus();
+                        hasErrors = true;
+                    }
+                }
+
+                // Валидация описания
+                if (descriptionField && !validateCyrillic(descriptionField, 'description')) {
+                    showFieldError(descriptionField, 'Описание должно содержать только кириллические символы, цифры и знаки препинания');
+                    if (!hasErrors) {
+                        descriptionField.focus();
+                        hasErrors = true;
+                    }
+                }
+
+                if (hasErrors) {
+                    e.preventDefault();
+                    return;
+                }
+
+                // Убеждаемся, что отправляется число без форматирования
+                priceField.value = numericValue;
+            });
+
+            // Автоматическая форматировка цены при загрузке, если есть значение
+            if (priceField.value) {
+                const numericValue = parseFormattedNumber(priceField.value);
+                if (!isNaN(numericValue) && numericValue > 0) {
+                    priceField.value = formatNumber(numericValue);
+                }
+            }
+        }
+
+        // Функция показа ошибки цены
+        function showPriceError(message) {
+            const existingError = document.querySelector('.price-error');
+            if (existingError) {
+                existingError.remove();
+            }
+
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'text-danger small price-error mt-1';
+            errorDiv.textContent = message;
+            priceField.parentNode.parentNode.appendChild(errorDiv);
+
+            priceField.classList.add('is-invalid');
+
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                    priceField.classList.remove('is-invalid');
+                }
+            }, 5000);
+        }
+
+        // Функция показа информационного сообщения
+        function showPriceInfo(message) {
+            const existingInfo = document.querySelector('.price-info');
+            if (existingInfo) {
+                existingInfo.remove();
+            }
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'text-info small price-info mt-1';
+            infoDiv.textContent = message;
+            priceField.parentNode.parentNode.appendChild(infoDiv);
+
+            setTimeout(() => {
+                if (infoDiv.parentNode) {
+                    infoDiv.remove();
+                }
+            }, 2000);
+        }
+
+        // Функция показа ошибки для полей
+        function showFieldError(field, message) {
+            const existingError = field.parentNode.querySelector('.field-error');
+            if (existingError) {
+                existingError.remove();
+            }
+
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'text-danger small field-error mt-1';
+            errorDiv.textContent = message;
+            field.parentNode.appendChild(errorDiv);
+
+            field.classList.add('is-invalid');
+
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.remove();
+                    field.classList.remove('is-invalid');
+                }
+            }, 5000);
         }
     });
 </script>
