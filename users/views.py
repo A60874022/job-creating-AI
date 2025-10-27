@@ -1,39 +1,17 @@
-from django.shortcuts import render, redirect
-from django.urls import reverse_lazy
-from django.views.generic import CreateView
-from django.contrib.auth import login
-from django.contrib import messages
-from django.utils.translation import gettext_lazy as _
-from .forms import UserRegistrationForm, UserLoginForm
-from .models import User
-
 # users/views.py
 import logging
-from django.views.generic import CreateView
+from django.views.generic import CreateView, FormView, View
 from django.urls import reverse_lazy
 from django.contrib.auth import login
 from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
 from django.shortcuts import redirect, get_object_or_404
+from django.contrib.auth.views import LoginView, PasswordResetView, PasswordResetConfirmView, PasswordResetCompleteView
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import logout
 
 from .models import User
-from .forms import UserRegistrationForm
-from .services.email_service import email_service
-
-logger = logging.getLogger(__name__)
-
-
-# users/views.py
-import logging
-from django.views.generic import CreateView
-from django.urls import reverse_lazy
-from django.contrib.auth import login
-from django.contrib import messages
-from django.utils.translation import gettext_lazy as _
-from django.shortcuts import redirect, get_object_or_404
-
-from .models import User
-from .forms import UserRegistrationForm, UserLoginForm  # Импорт в начале файла
+from .forms import UserRegistrationForm, UserLoginForm, EmailVerificationForm, UserEditForm, ProfileEditForm, AccountDeleteForm
 from .services.email_service import email_service
 
 logger = logging.getLogger(__name__)
@@ -41,55 +19,55 @@ logger = logging.getLogger(__name__)
 
 class RegisterView(CreateView):
     """
-    Представление для регистрации новых пользователей с подтверждением email.
+    Представление для регистрации новых пользователей с подтверждением email через код.
     """
-    
     model = User
-    form_class = UserRegistrationForm  # Используем импортированную форму
+    form_class = UserRegistrationForm
     template_name = 'users/register.html'
-    success_url = reverse_lazy('home')
-    
+    success_url = reverse_lazy('users:verify_email_code')
+
     def form_valid(self, form):
         """
         Обработка валидной формы регистрации.
         """
         try:
-            # Сохраняем форму, но не коммитим в БД для дополнительной обработки
+            # Сохраняем пользователя
             user = form.save(commit=False)
-            
-            # Устанавливаем флаги пользователя
             user.is_active = True
             user.email_verified = False
-            
-            # Сохраняем пользователя в БД
             user.save()
-            
-            # Генерируем и сохраняем токен верификации
-            verification_token = user.generate_verification_token()
-            
-            # Строим URL для подтверждения
-            verification_url = self.request.build_absolute_uri(
-                f'/users/verify-email/{verification_token}/'
-            )
-            
-            # Отправляем email через сервис
-            email_sent = email_service.send_verification_email(
+
+            # Генерируем и отправляем код подтверждения
+            verification_code = user.generate_verification_code()
+
+            email_sent = email_service.send_verification_code_email(
                 user_email=user.email,
-                verification_url=verification_url,
+                verification_code=verification_code,
                 context={'user_name': user.get_short_name()}
             )
-            
-            # Выполняем вход пользователя
-            login(self.request, user)
-            
-            # Логируем успешную регистрацию
-            logger.info(f"User {user.email} successfully registered. Email sent: {email_sent}")
-            
-            # Добавляем соответствующие сообщения об успехе
-            self._handle_registration_success(user, email_sent)
-            
+
+            # Сохраняем ID пользователя в сессии для подтверждения
+            self.request.session['user_id_for_verification'] = user.id
+            self.request.session['user_email'] = user.email
+
+            # Логируем
+            logger.info(f"User {user.email} registered. Verification code sent: {email_sent}")
+
+            # Сообщение пользователю
+            if email_sent:
+                messages.success(
+                    self.request,
+                    _('Код подтверждения отправлен на ваш email. Проверьте почту.')
+                )
+            else:
+                messages.warning(
+                    self.request,
+                    _('Регистрация завершена, но не удалось отправить код подтверждения. '
+                      'Вы можете запросить новый код на странице подтверждения.')
+                )
+
             return redirect(self.success_url)
-            
+
         except Exception as e:
             logger.error(f"Registration failed for email: {form.cleaned_data.get('email')}. Error: {e}")
             messages.error(
@@ -97,31 +75,7 @@ class RegisterView(CreateView):
                 _('Произошла ошибка при регистрации. Пожалуйста, попробуйте еще раз.')
             )
             return self.form_invalid(form)
-    
-    def _handle_registration_success(self, user: User, email_sent: bool) -> None:
-        """
-        Обрабатывает успешную регистрацию пользователя.
-        """
-        # Базовое сообщение об успехе
-        if user.is_master:
-            message = _(
-                'Успешная регистрация в качестве мастера! '
-                'Теперь вы можете добавлять свои товары.'
-            )
-        else:
-            message = _('Успешная регистрация! Начните изучать handmade товары.')
-        
-        # Добавляем информацию о email
-        if email_sent:
-            message += ' ' + _('На ваш email отправлено письмо с подтверждением.')
-        else:
-            message += ' ' + _(
-                'Не удалось отправить письмо с подтверждением. '
-                'Пожалуйста, обратитесь в поддержку.'
-            )
-        
-        messages.success(self.request, message)
-    
+
     def form_invalid(self, form):
         """
         Обработка невалидной формы регистрации.
@@ -137,51 +91,115 @@ class RegisterView(CreateView):
         return super().form_invalid(form)
 
 
-def verify_email(request, token):
+class EmailVerificationCodeView(FormView):
     """
-    Представление для подтверждения email адреса по токену.
+    Представление для ввода кода подтверждения email
     """
-    try:
-        # Ищем пользователя с указанным токеном
-        user = get_object_or_404(User, email_verification_token=token)
-        
-        # Проверяем валидность токена
-        if not user.is_verification_token_valid():
-            messages.error(
-                request, 
-                _('Срок действия ссылки подтверждения истек. '
-                  'Пожалуйста, запросите новую ссылку.')
-            )
-            return redirect('home')
-        
-        # Подтверждаем email и очищаем токен
-        user.email_verified = True
-        user.email_verification_token = None
-        user.save(update_fields=['email_verified', 'email_verification_token'])
-        
-        # Логируем успешное подтверждение
-        logger.info(f"Email verified successfully for user: {user.email}")
-        
-        # Уведомляем пользователя об успехе
-        messages.success(
-            request, 
-            _('Ваш email адрес успешно подтвержден!')
-        )
-        
-    except User.DoesNotExist:
-        # Логируем попытку использования неверного токена
-        logger.warning(f"Invalid verification token attempted: {token}")
-        
-        # Обрабатываем случай неверного токена
-        messages.error(
-            request, 
-            _('Неверная ссылка подтверждения. Пожалуйста, попробуйте еще раз.')
-        )
+    form_class = EmailVerificationForm
+    template_name = 'users/emails/verify_email_code.html'
+    success_url = reverse_lazy('home')
     
-    return redirect('home')
+    def dispatch(self, request, *args, **kwargs):
+        """
+        Проверяем, что пользователь прошел регистрацию
+        """
+        if 'user_id_for_verification' not in request.session:
+            messages.error(request, _('Сначала завершите регистрацию.'))
+            return redirect('users:register')
+        return super().dispatch(request, *args, **kwargs)
+    
+    def get_context_data(self, **kwargs):
+        """
+        Добавляем email пользователя в контекст
+        """
+        context = super().get_context_data(**kwargs)
+        context['user_email'] = self.request.session.get('user_email')
+        return context
+    
+    def form_valid(self, form):
+        """
+        Обработка валидной формы с кодом подтверждения
+        """
+        user_id = self.request.session.get('user_id_for_verification')
+        verification_code = form.cleaned_data['verification_code']
+        
+        try:
+            user = User.objects.get(id=user_id)
+            
+            if user.verify_email_with_code(verification_code):
+                # Успешное подтверждение
+                login(self.request, user)
+                
+                # Очищаем сессию
+                self._clear_verification_session()
+                
+                messages.success(
+                    self.request,
+                    _('Email успешно подтвержден! Добро пожаловать!')
+                )
+                logger.info(f"Email verified for user: {user.email}")
+                
+                return redirect(self.success_url)
+            else:
+                messages.error(
+                    self.request,
+                    _('Неверный код подтверждения или срок его действия истек.')
+                )
+                return self.form_invalid(form)
+                
+        except User.DoesNotExist:
+            messages.error(self.request, _('Пользователь не найден.'))
+            return self.form_invalid(form)
+    
+    def _clear_verification_session(self):
+        """
+        Очищает данные верификации из сессии
+        """
+        if 'user_id_for_verification' in self.request.session:
+            del self.request.session['user_id_for_verification']
+        if 'user_email' in self.request.session:
+            del self.request.session['user_email']
 
-from django.contrib.auth.views import LoginView
-from django.utils.translation import gettext_lazy as _
+
+class ResendVerificationCodeView(View):
+    """
+    Представление для повторной отправки кода подтверждения
+    """
+    
+    def post(self, request):
+        user_id = request.session.get('user_id_for_verification')
+        
+        if not user_id:
+            messages.error(request, _('Сессия истекла. Пожалуйста, зарегистрируйтесь снова.'))
+            return redirect('users:register')
+        
+        try:
+            user = User.objects.get(id=user_id)
+            new_code = user.generate_verification_code()
+            
+            email_sent = email_service.send_verification_code_email(
+                user_email=user.email,
+                verification_code=new_code,
+                context={'user_name': user.get_short_name()}
+            )
+            
+            if email_sent:
+                messages.success(
+                    request,
+                    _('Новый код подтверждения отправлен на ваш email.')
+                )
+            else:
+                messages.error(
+                    request,
+                    _('Не удалось отправить код подтверждения. Попробуйте позже.')
+                )
+            
+            return redirect('users:verify_email_code')
+            
+        except User.DoesNotExist:
+            messages.error(request, _('Пользователь не найден.'))
+            return redirect('users:register')
+
 
 class CustomLoginView(LoginView):
     """
@@ -194,16 +212,15 @@ class CustomLoginView(LoginView):
     
     def form_valid(self, form):
         """Добавляем сообщение об успешном входе"""
-        messages.success(self.request, _('Успешный вход в систему!'))
-        return super().form_valid(form)
+        user = form.get_user()
+        if user.email_verified:
+            messages.success(self.request, _('Успешный вход в систему!'))
+            return super().form_valid(form)
+        else:
+            # Этот случай должен быть обработан формой, но на всякий случай
+            messages.error(self.request, _('Пожалуйста, подтвердите ваш email перед входом.'))
+            return self.form_invalid(form)
 
-
-from django.contrib.auth.views import (
-    PasswordResetView, 
-    PasswordResetDoneView,
-    PasswordResetConfirmView,
-    PasswordResetCompleteView
-)
 
 class CustomPasswordResetView(PasswordResetView):
     """
@@ -220,6 +237,7 @@ class CustomPasswordResetView(PasswordResetView):
         )
         return super().form_valid(form)
 
+
 class CustomPasswordResetConfirmView(PasswordResetConfirmView):
     """
     Сброс пароля - шаг 3: ввод нового пароля
@@ -231,18 +249,13 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
         messages.success(self.request, _('Ваш пароль был успешно сброшен!'))
         return super().form_valid(form)
 
+
 class CustomPasswordResetCompleteView(PasswordResetCompleteView):
     """
     Сброс пароля - шаг 4: завершение сброса пароля
     """
     template_name = 'users/password_reset_complete.html'
 
-
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from .forms import UserEditForm, ProfileEditForm,  AccountDeleteForm
-from django.contrib.auth import logout
 
 @login_required
 def edit_profile(request):

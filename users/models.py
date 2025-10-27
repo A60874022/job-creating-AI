@@ -4,6 +4,12 @@ from django.utils.translation import gettext_lazy as _
 import secrets
 from django.core.mail import send_mail
 
+from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.db import models
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+import random
+
 class UserManager(BaseUserManager):
     """Define a model manager for User model with no username field."""
 
@@ -38,118 +44,64 @@ class UserManager(BaseUserManager):
         return self._create_user(email, password, **extra_fields)
 
 
-
-
-# users/models.py
-from django.db import models
-from django.contrib.auth.models import AbstractUser
-from django.utils import timezone
-from django.utils.translation import gettext_lazy as _
-from .utils.token_generator import token_generator  # Импортируем наш генератор токенов
-
-
 class User(AbstractUser):
-    """
-    Кастомная модель пользователя с email в качестве идентификатора.
-    
-    Атрибуты:
-        username (None): Отключаем стандартное поле username
-        email (EmailField): Уникальный email пользователя с валидацией на уровне БД
-        is_master (BooleanField): Флаг, указывающий является ли пользователь мастером
-        email_verified (BooleanField): Флаг подтверждения email адреса
-        email_verification_token (CharField): Токен для верификации email
-        verification_token_created_at (DateTimeField): Время создания токена верификации
-    """
-    
-    username = None
-    email = models.EmailField(
-        _('email address'), 
-        unique=True,
-        error_messages={
-            'unique': _('Пользователь с таким email уже существует.')
-        }
-    )
-    is_master = models.BooleanField(
-        default=False,
-        verbose_name=_('мастер'),
-        help_text=_('Отметьте, если пользователь является мастером')
-    )
-    email_verified = models.BooleanField(
-        default=False,
-        verbose_name=_('email подтвержден'),
-        help_text=_('Отметьте, если email адрес был подтвержден')
-    )
-    email_verification_token = models.CharField(
-        max_length=100, 
+    email = models.EmailField(_('email address'), unique=True)
+    email_verified = models.BooleanField(_('email verified'), default=False)
+    email_verification_code = models.CharField(
+        _('email verification code'), 
+        max_length=6, 
         blank=True, 
-        null=True,
-        verbose_name=_('токен верификации email'),
-        help_text=_('Уникальный токен для подтверждения email адреса')
+        null=True
     )
-    verification_token_created_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name=_('время создания токена'),
-        help_text=_('Время когда был создан токен верификации')
+    email_verification_code_created_at = models.DateTimeField(
+        _('verification code created at'), 
+        blank=True, 
+        null=True
     )
-
+    is_master = models.BooleanField(_('is master'), default=False)
+    
+    # Убираем username, используем email
+    username = None
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []
 
     objects = UserManager()
 
-    class Meta:
-        verbose_name = _('пользователь')
-        verbose_name_plural = _('пользователи')
-        db_table = 'auth_user'
-        indexes = [
-            models.Index(fields=['email']),
-            models.Index(fields=['email_verification_token']),
-            models.Index(fields=['is_master']),
-        ]
+    def generate_verification_code(self):
+        """Генерирует 6-значный код подтверждения"""
+        code = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        self.email_verification_code = code
+        self.email_verification_code_created_at = timezone.now()
+        self.save(update_fields=[
+            'email_verification_code', 
+            'email_verification_code_created_at'
+        ])
+        return code
+
+    def is_verification_code_valid(self, code):
+        """Проверяет валидность кода подтверждения (15 минут)"""
+        if (self.email_verification_code == code and 
+            self.email_verification_code_created_at):
+            expiration_time = self.email_verification_code_created_at + timezone.timedelta(minutes=15)
+            return timezone.now() <= expiration_time
+        return False
+
+    def verify_email_with_code(self, code):
+        """Подтверждает email по коду"""
+        if self.is_verification_code_valid(code):
+            self.email_verified = True
+            self.email_verification_code = None
+            self.email_verification_code_created_at = None
+            self.save(update_fields=[
+                'email_verified',
+                'email_verification_code',
+                'email_verification_code_created_at'
+            ])
+            return True
+        return False
 
     def __str__(self):
-        """Строковое представление пользователя - email адрес."""
         return self.email
-    
-    def clean(self):
-        """
-        Валидация модели перед сохранением.
-        Проверяет корректность email адреса.
-        
-        Note: Проверка уникальности осуществляется на уровне БД (unique=True)
-              и через форму регистрации для лучшего UX.
-        """
-        super().clean()
-        # Базовая валидация email средствами Django
-        from django.core.validators import validate_email
-        validate_email(self.email)
-    
-    def generate_verification_token(self) -> str:
-        """
-        Генерирует и сохраняет токен для верификации email.
-        
-        Returns:
-            str: Сгенерированный токен
-        """
-        self.email_verification_token = token_generator.generate_verification_token()
-        self.verification_token_created_at = timezone.now()
-        self.save(update_fields=[
-            'email_verification_token', 
-            'verification_token_created_at'
-        ])
-        return self.email_verification_token
-    
-    def is_verification_token_valid(self) -> bool:
-        """
-        Проверяет валидность токена верификации.
-        
-        Returns:
-            bool: True если токен действителен, False если истек
-        """
-        return token_generator.is_token_valid(
-            self.verification_token_created_at,
-            expiry_hours=48  # Токен действителен 48 часов
-        )
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)

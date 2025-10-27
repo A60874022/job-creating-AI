@@ -1,60 +1,11 @@
-from django import forms
-from django.contrib.auth.forms import UserCreationForm
-from django.core.exceptions import ValidationError
-from django.utils.translation import gettext_lazy as _
-from django.contrib.auth.forms import UserChangeForm
-from django.core.validators import validate_email
-from django.contrib.auth.password_validation import validate_password
-from .models import User, Profile
-
-
-import re
-from django.core.exceptions import ValidationError
-from django.utils.translation import gettext_lazy as _
-
-def validate_password_no_russian(value):
-    """
-    Валидатор пароля: проверяет отсутствие русских букв.
-    
-    Args:
-        value (str): Пароль для проверки
-        
-    Raises:
-        ValidationError: Если пароль содержит русские буквы
-    """
-    russian_chars_pattern = re.compile('[а-яёА-ЯЁ]')
-    if russian_chars_pattern.search(value):
-        raise ValidationError(
-            _('Пароль не должен содержать русские буквы.'),
-            code='password_contains_russian'
-        )
-
-
-# users/views.py
-import logging
-from django.views.generic import CreateView
-from django.urls import reverse_lazy
-from django.contrib.auth import login
-from django.contrib import messages
-from django.utils.translation import gettext_lazy as _
-from django.shortcuts import redirect, get_object_or_404
-
-from .models import User
-
-from .services.email_service import email_service
-
-logger = logging.getLogger(__name__)
-
-
 # users/forms.py
-import re
 from django import forms
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.utils.translation import gettext_lazy as _
-from .models import User
-
+from .models import User, Profile
+import re
 
 def validate_password_no_russian(value):
     """
@@ -172,7 +123,6 @@ class UserRegistrationForm(UserCreationForm):
             
         return user
 
-from django.contrib.auth.forms import AuthenticationForm
 
 class UserLoginForm(AuthenticationForm):
     """
@@ -200,16 +150,57 @@ class UserLoginForm(AuthenticationForm):
             "Note that both fields may be case-sensitive."
         ),
         'inactive': _("This account is inactive."),
+        'email_not_verified': _("Please verify your email address before logging in."),
     }
 
+    def confirm_login_allowed(self, user):
+        """
+        Проверяет, может ли пользователь войти в систему.
+        """
+        if not user.email_verified:
+            raise forms.ValidationError(
+                self.error_messages['email_not_verified'],
+                code='email_not_verified',
+            )
+        super().confirm_login_allowed(user)
 
-class UserEditForm(UserChangeForm):
+
+class EmailVerificationForm(forms.Form):
+    """
+    Форма для ввода кода подтверждения email
+    """
+    verification_code = forms.CharField(
+        label=_('Код подтверждения'),
+        max_length=6,
+        min_length=6,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': _('Введите 6-значный код'),
+            'maxlength': '6',
+            'pattern': '[0-9]{6}'
+        }),
+        help_text=_('Введите 6-значный код, отправленный на ваш email')
+    )
+
+    def clean_verification_code(self):
+        """Валидация кода подтверждения"""
+        code = self.cleaned_data.get('verification_code', '').strip()
+        if not code.isdigit() or len(code) != 6:
+            raise ValidationError(
+                _('Код должен состоять из 6 цифр.'),
+                code='invalid_code_format'
+            )
+        return code
+
+
+class UserEditForm(forms.ModelForm):
     # Убираем поле password, чтобы пользователь не видел его в открытом виде
     password = None
 
     class Meta:
         model = User
         fields = ('email', 'first_name', 'last_name') # Добавляем поля при необходимости
+
 
 class ProfileEditForm(forms.ModelForm):
     class Meta:
