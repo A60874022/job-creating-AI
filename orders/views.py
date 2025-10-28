@@ -29,7 +29,7 @@ def add_to_cart(request, product_id):
     # Проверяем, не является ли пользователь мастером этого товара
     if product.master == request.user:
         messages.error(request, 'Вы не можете добавить в корзину свой собственный товар')
-        return redirect('product_detail', pk=product_id)
+        return redirect('products:product_detail', pk=product_id)  # ← ИСПРАВЛЕНО
     
     cart, created = Cart.objects.get_or_create(user=request.user)
     
@@ -48,7 +48,7 @@ def add_to_cart(request, product_id):
     else:
         messages.success(request, f'Товар "{product.title}" добавлен в корзину!')
     
-    return redirect('orders:cart_view')
+    return redirect('orders:cart_view')  # ← Эта строка правильная
 
 @login_required
 def update_cart_item(request, item_id):
