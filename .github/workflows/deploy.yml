@@ -37,88 +37,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup monitoring and health scripts on server
-        uses: appleboy/ssh-action@master
-        with:
-          host: '185.207.0.125'
-          username: 'root'
-          password: '!L3VfMAG*sjX'
-          script: |
-            echo "📋 Setting up health monitoring..."
-            mkdir -p /root/ad_service/scripts
-            mkdir -p /root/ad_service/logs
-            
-            # Создаем скрипт мониторинга здоровья
-            cat > /root/ad_service/scripts/health_monitor.sh << 'EOF'
-            #!/bin/bash
-            COMPOSE_FILE="/root/ad_service/docker-compose.yml"
-            LOG_FILE="/root/ad_service/logs/health_monitor.log"
-            
-            check_and_restart() {
-                local container_name="$1"
-                local service_name="$2"
-                
-                if [ "$(docker inspect -f '{{.State.Status}}' $container_name 2>/dev/null)" != "running" ]; then
-                    echo "$(date): Контейнер $container_name не запущен. Перезапускаем..." >> $LOG_FILE
-                    
-                    cd /root/ad_service
-                    docker-compose restart $service_name
-                    
-                    echo "$(date): Сервис $service_name перезапущен" >> $LOG_FILE
-                fi
-            }
-            
-            while true; do
-                check_and_restart "handmade_web" "web"
-                check_and_restart "handmade_db" "db" 
-                check_and_restart "handmade_redis" "redis"
-                check_and_restart "handmade_nginx" "nginx"
-                sleep 300
-            done
-            EOF
-            
-            chmod +x /root/ad_service/scripts/health_monitor.sh
-            echo "✅ Health monitor script created"
-
-      - name: Start health monitoring in background
-        uses: appleboy/ssh-action@master
-        with:
-          host: '185.207.0.125'
-          username: 'root'
-          password: '!L3VfMAG*sjX'
-          script: |
-            echo "🔍 Starting health monitoring..."
-            # Останавливаем предыдущий мониторинг если есть
-            pkill -f health_monitor.sh || true
-            # Запускаем новый мониторинг в фоне
-            nohup /root/ad_service/scripts/health_monitor.sh > /root/ad_service/logs/monitor.out 2>&1 &
-            echo "✅ Health monitoring started"
-
       - name: Clean server and setup directories (preserve DB)
         uses: appleboy/ssh-action@master
         with:
-          host: '185.207.0.125'
-          username: 'root'
-          password: '!L3VfMAG*sjX'
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
           script: |
             echo "🧹 Cleaning server (preserving database)..."
             cd /root
             
-            # Более безопасная очистка с сохранением данных
+            # Останавливаем контейнеры если есть (сохраняем тома)
             if [ -d "ad_service" ]; then
               cd ad_service
               docker-compose down || true
             fi
             
-            # Удаляем только контейнеры приложения
+            # Удаляем только контейнеры приложения, НЕ тома БД
             echo "Removing application containers..."
-            docker ps -a --filter "name=handmade" --format "{{.ID}}" | xargs -r docker rm -f || true
+            docker ps -a | grep -E "(handmade_web|handmade_nginx|redis)" | awk '{print $1}' | xargs -r docker rm -f || true
             
-            # Удаляем образы приложения
+            # Удаляем образы приложения, но не postgres
             echo "Removing application images..."
-            docker images --filter "reference=anton60874022/ad_service" --format "{{.ID}}" | xargs -r docker rmi -f || true
+            docker images | grep -E "(ad_service|anton60874022)" | awk '{print $3}' | xargs -r docker rmi -f || true
             
-            # Очищаем неиспользуемые ресурсы (кроме томов)
+            # Очищаем неиспользуемые ресурсы, но сохраняем тома
             echo "Cleaning unused Docker resources..."
             docker system prune -f || true
             
@@ -126,54 +69,44 @@ jobs:
             echo "Checking database volume..."
             docker volume ls | grep postgres_data || echo "Database volume not found (will be created)"
             
-            # Пересоздаем структуру папок
+            # Очищаем и пересоздаем папку проекта (тома БД сохраняются автоматически)
             echo "Recreating project directory..."
             rm -rf /root/ad_service
             mkdir -p /root/ad_service/nginx/conf.d
             mkdir -p /root/ad_service/logs/nginx
-            mkdir -p /root/ad_service/scripts
             
             echo "✅ Server cleaned (database data preserved)"
 
       - name: Copy infrastructure files to server
         uses: appleboy/scp-action@master
         with:
-          host: '185.207.0.125'
-          username: 'root'
-          password: '!L3VfMAG*sjX'
-          source: "docker-compose.yml"
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: "infra/"
           target: "/root/ad_service/"
           overwrite: true
-
-      - name: Copy nginx configuration
-        uses: appleboy/scp-action@master
-        with:
-          host: '185.207.0.125'
-          username: 'root'
-          password: '!L3VfMAG*sjX'
-          source: "nginx/"
-          target: "/root/ad_service/"
-          overwrite: true
+          strip_components: 1
 
       - name: Copy .env to server
         uses: appleboy/scp-action@master
         with:
-          host: '185.207.0.125'
-          username: 'root'
-          password: '!L3VfMAG*sjX'
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
           source: ".env"
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Deploy application with health checks
+      - name: Deploy application with database preservation
         uses: appleboy/ssh-action@master
         with:
-          host: '185.207.0.125'
-          username: 'root'
-          password: '!L3VfMAG*sjX'
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -e
-            echo "🚀 Starting deployment with health monitoring..."
+            echo "🚀 Starting deployment (with database preservation)..."
             cd /root/ad_service/
             
             echo "=== Current directory structure ==="
@@ -184,12 +117,13 @@ jobs:
             echo "1. Pulling latest application image..."
             docker pull anton60874022/ad_service:latest
             
-            echo "2. Starting containers with health checks..."
+            echo "2. Starting containers (database volume will be reused)..."
             docker-compose up -d
             
             echo "3. Waiting for database to be ready..."
+            # Ждем пока PostgreSQL будет готов принимать подключения
             for i in {1..30}; do
-              if docker-compose exec -T db pg_isready -U postgres 2>/dev/null; then
+              if docker-compose exec -T db pg_isready -U postgres; then
                 echo "✅ Database is ready!"
                 break
               else
@@ -198,59 +132,37 @@ jobs:
               fi
             done
             
-            echo "4. Waiting for application health checks..."
-            for i in {1..20}; do
-              if docker-compose ps web | grep -q "(healthy)"; then
-                echo "✅ Application is healthy!"
-                break
-              else
-                echo "⏳ Waiting for application health... ($i/20)"
-                sleep 3
-              fi
-            done
+            echo "4. Waiting for application to start..."
+            sleep 15
             
             echo "5. Running migrations..."
             docker-compose exec -T web python manage.py migrate --noinput
             
-            echo "6. Checking final services status..."
+            echo "6. Checking services status..."
             docker-compose ps
             
-            echo "✅ Deployment completed with health monitoring!"
+            echo "✅ Deployment completed with database preservation!"
 
-      - name: Verify deployment and setup auto-restart
+      - name: Verify deployment and data integrity
         uses: appleboy/ssh-action@master
         with:
-          host: '185.207.0.125'
-          username: 'root'
-          password: '!L3VfMAG*sjX'
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🔍 Final verification and auto-restart setup..."
+            echo "🔍 Final verification (checking database)..."
             cd /root/ad_service/
             
-            echo "1. Container status with health:"
+            echo "1. Container status:"
             docker-compose ps
             
-            echo "2. Checking application response..."
+            echo "2. Checking if application can connect to database..."
+            docker-compose exec -T web python manage.py check --database default
+            
+            echo "3. Recent application logs:"
+            docker-compose logs --tail=10 web
+            
+            echo "4. Checking web service response..."
             curl -f http://localhost:8000/ || curl -f http://localhost/ || echo "Application might be starting..."
             
-            echo "3. Setting up auto-restart policies..."
-            docker update --restart=unless-stopped handmade_web handmade_nginx handmade_db handmade_redis
-            
-            echo "4. Setting up crontab for monitoring..."
-            # Добавляем в крон перезапуск мониторинга при перезагрузке сервера
-            (crontab -l 2>/dev/null | grep -v "health_monitor"; echo "@reboot /root/ad_service/scripts/health_monitor.sh > /root/ad_service/logs/cron-monitor.out 2>&1 &") | crontab -
-            
-            echo "5. Current crontab:"
-            crontab -l || echo "No crontab"
-            
-            echo "🎉 Deployment complete! Auto-restart and monitoring configured."
-
-      - name: Security cleanup reminder
-        run: |
-          echo "⚠️  ⚠️  ⚠️  ВАЖНОЕ ПРЕДУПРЕЖДЕНИЕ ПО БЕЗОПАСНОСТИ ⚠️  ⚠️  ⚠️"
-          echo "1. НЕМЕДЛЕННО удалите этот workflow файл из репозитория!"
-          echo "2. Смените пароль на сервере: ssh root@185.207.0.125"
-          echo "3. Добавьте в .gitignore: echo '.github/workflows/deploy.yml' >> .gitignore"
-          echo "4. Удалите файл из git: git rm --cached .github/workflows/deploy.yml"
-          echo "5. Сделайте коммит: git commit -m 'Remove sensitive workflow'"
-          echo "6. Запушите изменения: git push"
+            echo "🎉 Deployment verification complete! Database preserved."
