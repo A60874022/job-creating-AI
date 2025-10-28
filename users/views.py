@@ -9,6 +9,7 @@ from django.shortcuts import redirect, get_object_or_404
 from django.contrib.auth.views import LoginView, PasswordResetView, PasswordResetConfirmView, PasswordResetCompleteView
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
+from django.shortcuts import render, redirect, get_object_or_404  #
 
 from .models import User
 from .forms import UserRegistrationForm, UserLoginForm, EmailVerificationForm, UserEditForm, ProfileEditForm, AccountDeleteForm
