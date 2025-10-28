@@ -2,7 +2,7 @@ name: Deploy Ad Service
 
 on:
   push:
-    branches: [ mail ]
+    branches: [ hand_made ]
 
 jobs:
   build_and_push:
@@ -40,9 +40,9 @@ jobs:
       - name: Clean server and setup directories (preserve DB)
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
+          host: '185.207.0.125'
+          username: 'root'  # предположительно root, если нет - укажите правильного пользователя
+          password: '!L3VfMAG*sjX'
           script: |
             echo "🧹 Cleaning server (preserving database)..."
             cd /root
@@ -80,9 +80,9 @@ jobs:
       - name: Copy infrastructure files to server
         uses: appleboy/scp-action@master
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
+          host: '185.207.0.125'
+          username: 'root'  # предположительно root, если нет - укажите правильного пользователя
+          password: '!L3VfMAG*sjX'
           source: "infra/"
           target: "/root/ad_service/"
           overwrite: true
@@ -91,9 +91,9 @@ jobs:
       - name: Copy .env to server
         uses: appleboy/scp-action@master
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
+          host: '185.207.0.125'
+          username: 'root'  # предположительно root, если нет - укажите правильного пользователя
+          password: '!L3VfMAG*sjX'
           source: ".env"
           target: "/root/ad_service/"
           overwrite: true
@@ -101,9 +101,9 @@ jobs:
       - name: Deploy application with database preservation
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
+          host: '185.207.0.125'
+          username: 'root'  # предположительно root, если нет - укажите правильного пользователя
+          password: '!L3VfMAG*sjX'
           script: |
             set -e
             echo "🚀 Starting deployment (with database preservation)..."
@@ -146,9 +146,9 @@ jobs:
       - name: Verify deployment and data integrity
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
+          host: '185.207.0.125'
+          username: 'root'  # предположительно root, если нет - укажите правильного пользователя
+          password: '!L3VfMAG*sjX'
           script: |
             echo "🔍 Final verification (checking database)..."
             cd /root/ad_service/
