@@ -37,6 +37,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Docker Compose on server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "📦 Installing Docker Compose..."
+            
+            # Проверяем, установлен ли уже docker compose
+            if command -v docker-compose &> /dev/null; then
+              echo "✅ Docker Compose already installed"
+              docker-compose --version
+            else
+              echo "Installing Docker Compose..."
+              # Скачиваем и устанавливаем Docker Compose
+              curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
+              chmod +x /usr/local/bin/docker-compose
+              ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+              echo "✅ Docker Compose installed successfully"
+              docker-compose --version
+            fi
+
       - name: Clean server and setup directories (preserve DB)
         uses: appleboy/ssh-action@master
         with:
