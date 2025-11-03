@@ -28,53 +28,36 @@ class RegisterView(CreateView):
     success_url = reverse_lazy('users:verify_email_code')
 
     def form_valid(self, form):
-        """
-        Обработка валидной формы регистрации.
-        """
-        try:
+        password = form.cleaned_data['password1']
+        user = getattr(form, 'instance', None)
+
+        if user and user.pk:
+            # Существующий пользователь (не подтверждён)
+            user.set_password(password)  # обновляем пароль
+            user.save()
+        else:
+            # Новый пользователь
             user = form.save(commit=False)
             user.is_active = True
             user.email_verified = False
             user.save()
 
-            # Генерируем и отправляем код подтверждения
-            verification_code = user.generate_verification_code()
+        # Генерация кода и отправка email
+        verification_code = user.generate_verification_code()
+        email_service.send_verification_code_email(
+            user_email=user.email,
+            verification_code=verification_code,
+            context={'user_name': user.get_short_name()}
+        )
 
-            email_sent = email_service.send_verification_code_email(
-                user_email=user.email,
-                verification_code=verification_code,
-                context={'user_name': user.get_short_name()}
-            )
+        # Сохраняем в сессии
+        self.request.session['user_id_for_verification'] = user.id
+        self.request.session['user_email'] = user.email
 
-            # Сохраняем ID пользователя в сессии для подтверждения
-            self.request.session['user_id_for_verification'] = user.id
-            self.request.session['user_email'] = user.email
+        messages.success(self.request, _('Код подтверждения отправлен на ваш email.'))
+        return redirect(self.success_url)
 
-            # Логируем
-            logger.info(f"User {user.email} registered. Verification code sent: {email_sent}")
 
-            # Сообщение пользователю
-            if email_sent:
-                messages.success(
-                    self.request,
-                    _('Код подтверждения отправлен на ваш email. Проверьте почту.')
-                )
-            else:
-                messages.warning(
-                    self.request,
-                    _('Регистрация завершена, но не удалось отправить код подтверждения. '
-                      'Вы можете запросить новый код на странице подтверждения.')
-                )
-
-            return redirect(self.success_url)
-
-        except Exception as e:
-            logger.error(f"Registration failed for email: {form.cleaned_data.get('email')}. Error: {e}")
-            messages.error(
-                self.request,
-                _('Произошла ошибка при регистрации. Пожалуйста, попробуйте еще раз.')
-            )
-            return self.form_invalid(form)
 
     def form_invalid(self, form):
         """

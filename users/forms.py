@@ -84,17 +84,21 @@ class UserRegistrationForm(UserCreationForm):
         )
 
     def clean_email(self):
-        """
-        Валидация email адреса на уникальность.
-        """
         email = self.cleaned_data.get('email').lower().strip()
-        
-        if User.objects.filter(email=email).exists():
-            raise ValidationError(
-                _('Пользователь с таким email уже существует.'),
-                code='duplicate_email'
-            )
+        try:
+            user = User.objects.get(email=email)
+            if user.email_verified:
+                raise ValidationError(
+                    _('Пользователь с таким email уже существует.'),
+                    code='duplicate_email'
+                )
+            else:
+                # Email есть, но не подтверждён — используем существующего пользователя
+                self.instance = user
+        except User.DoesNotExist:
+            pass
         return email
+
 
     def clean_password1(self):
         """
