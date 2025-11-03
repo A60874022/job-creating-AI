@@ -51,12 +51,14 @@
                                     {{ order.get_status_display }}
                                 </span>
                                 <div class="mt-1">
-                                    <strong class="text-brown">{{ order.total_amount }} ₽</strong>
+                                    {% with master_items=order.items.filter product__master=request.user %}
+                                    <strong class="text-brown">{{ master_items|length }} товар(ов)</strong>
+                                    {% endwith %}
                                 </div>
                             </div>
                         </div>
                         <div class="card-body">
-                            <h6 class="fw-bold">Мои товары в заказе:</h6>
+                            <h6 class="fw-bold mb-3">Мои товары в заказе:</h6>
                             {% for item in order.items.all %}
                             {% if item.product.master == request.user %}
                             <div
@@ -76,7 +78,7 @@
                                 <div class="col-md-6">
                                     <h6 class="fw-bold mb-1">{{ item.product.title }}</h6>
                                     <p class="text-muted small mb-1">{{ item.product.description|truncatewords:10 }}</p>
-                                    <small class="text-muted">Количество: {{ item.quantity }}</small>
+                                    <small class="text-muted">Артикул: {{ item.product.id }}</small>
                                 </div>
                                 <div class="col-md-2 text-center">
                                     <span class="fw-bold">×{{ item.quantity }}</span>
@@ -122,11 +124,15 @@
                                         <small>Это действие нельзя отменить. Все данные заказа будут удалены
                                             безвозвратно.</small>
                                     </p>
+                                    <div class="alert alert-warning mt-3">
+                                        <small>⚠️ Внимание! При удалении заказа покупатель получит уведомление об
+                                            отмене.</small>
+                                    </div>
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary"
                                         data-bs-dismiss="modal">Отмена</button>
-                                    <form action="{% url 'orders:delete_order' order.id %}" method="post">
+                                    <form action="{% url 'orders:delete_master' order.id %}" method="post">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-danger">
                                             🗑 Удалить заказ
@@ -152,4 +158,22 @@
         </div>
     </div>
 </div>
+
+<style>
+    .text-brown {
+        color: #8B4513;
+    }
+
+    .btn-primary {
+        background-color: #8B4513;
+        border-color: #8B4513;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .btn-primary:hover {
+        background-color: #654321;
+        border-color: #654321;
+    }
+</style>
 {% endblock %}

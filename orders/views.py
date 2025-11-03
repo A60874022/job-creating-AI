@@ -201,51 +201,85 @@ def master_orders(request):
     return render(request, 'orders/master_orders.html', context)
 
 @login_required
+@transaction.atomic
 def delete_order(request, order_id):
     """
-    Удаление заказа покупателем
+    Удаление заказа покупателем с проверками и уведомлениями
     """
     try:
         # Находим заказ и проверяем, что он принадлежит текущему пользователю
         order = get_object_or_404(Order, id=order_id, customer=request.user)
         
-        # Сохраняем ID заказа для сообщения
+        # Сохраняем информацию для сообщения
         order_id = order.id
+        order_status = order.status
+        
+        # Дополнительная проверка: нельзя удалять доставленные заказы
+        if order.status == 'доставлен':
+            messages.error(request, 'Нельзя удалить доставленный заказ.')
+            return redirect('orders:customer_orders')
+        
+        # Создаем уведомления для мастеров перед удалением
+        masters_notified = set()
+        for item in order.items.all():
+            master = item.product.master
+            if master.id not in masters_notified:
+                try:
+                    # Уведомляем мастера об отмене заказа покупателем
+                    NotificationService.create_cancellation_notification(order, master, request.user)
+                    masters_notified.add(master.id)
+                except Exception as e:
+                    print(f"Ошибка при создании уведомления для мастера {master.email}: {e}")
         
         # Удаляем заказ
         order.delete()
         
         messages.success(request, f'Заказ #{order_id} успешно удален.')
         
+    except Order.DoesNotExist:
+        messages.error(request, 'Заказ не найден или у вас нет прав для его удаления.')
     except Exception as e:
+        print(f"Ошибка при удалении заказа: {e}")
         messages.error(request, f'Ошибка при удалении заказа: {str(e)}')
     
     return redirect('orders:customer_orders')
 
 @login_required
+@transaction.atomic
 def delete_master(request, order_id):
     """
-    Представление для удаления заказа мастером
+    Представление для удаления заказа мастером с улучшенной логикой
     """
     # Проверяем, что пользователь - мастер
     if not request.user.is_master:
         messages.error(request, "У вас нет прав для выполнения этого действия.")
         return redirect('orders:master_orders')
     
-    # Получаем заказ или возвращаем 404 ошибку
-    order = get_object_or_404(Order, id=order_id)
-    
-    # Дополнительная проверка: убеждаемся, что в заказе есть товары этого мастера
-    master_items = order.items.filter(product__master=request.user)
-    if not master_items.exists():
-        messages.error(request, "Этот заказ не содержит ваших товаров.")
-        return redirect('orders:master_orders')
-    
     try:
+        # Получаем заказ
+        order = get_object_or_404(Order, id=order_id)
+        
+        # Проверяем, что в заказе есть товары этого мастера
+        master_items = order.items.filter(product__master=request.user)
+        if not master_items.exists():
+            messages.error(request, "Этот заказ не содержит ваших товаров.")
+            return redirect('orders:master_orders')
+        
+        # Уведомляем покупателя об отмене заказа мастером
+        try:
+            NotificationService.create_master_cancellation_notification(order, request.user)
+        except Exception as e:
+            print(f"Ошибка при создании уведомления для покупателя: {e}")
+        
         order_id = order.id
         order.delete()
+        
         messages.success(request, f'Заказ #{order_id} был успешно удален.')
+        
+    except Order.DoesNotExist:
+        messages.error(request, "Заказ не найден.")
     except Exception as e:
+        print(f"Ошибка при удалении заказа мастером: {e}")
         messages.error(request, f'При удалении заказа произошла ошибка: {str(e)}')
     
     return redirect('orders:master_orders')

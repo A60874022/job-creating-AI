@@ -42,16 +42,20 @@
                         <div class="col-md-3">
                             <div class="d-flex align-items-center">
                                 <form method="post" action="{% url 'orders:update_cart_item' item.id %}"
-                                    class="d-flex align-items-center">
+                                    class="d-flex align-items-center cart-item-form">
                                     {% csrf_token %}
                                     <button type="button" class="btn btn-outline-secondary btn-sm decrement"
                                         data-item-id="{{ item.id }}">-</button>
                                     <input type="number" name="quantity" value="{{ item.quantity }}" min="1" max="99"
-                                        class="form-control form-control-sm mx-2 text-center" style="width: 60px;"
-                                        onchange="this.form.submit()">
+                                        class="form-control form-control-sm mx-2 text-center quantity-input"
+                                        style="width: 60px;" data-item-id="{{ item.id }}">
                                     <button type="button" class="btn btn-outline-secondary btn-sm increment"
                                         data-item-id="{{ item.id }}">+</button>
                                 </form>
+                            </div>
+                            <div class="text-danger small mt-1 validation-message" id="validation-{{ item.id }}"
+                                style="display: none;">
+                                Количество должно быть от 1 до 99
                             </div>
                         </div>
 
@@ -61,7 +65,8 @@
                         </div>
 
                         <div class="col-md-1 text-end">
-                            <form method="post" action="{% url 'orders:remove_from_cart' item.id %}">
+                            <form method="post" action="{% url 'orders:remove_from_cart' item.id %}"
+                                class="remove-form">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-outline-danger btn-sm"
                                     onclick="return confirm('Удалить товар из корзины?')">
@@ -130,13 +135,41 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // Функция для проверки валидности количества
+        function validateQuantity(value) {
+            return value >= 1 && value <= 99;
+        }
+
+        // Функция для обновления количества товара
+        function updateQuantity(itemId, newQuantity) {
+            const form = document.querySelector(`.cart-item-form [data-item-id="${itemId}"]`).closest('form');
+            const input = form.querySelector('input[name="quantity"]');
+
+            if (validateQuantity(newQuantity)) {
+                input.value = newQuantity;
+                form.submit();
+            } else {
+                // Показываем сообщение об ошибке
+                const validationMessage = document.getElementById(`validation-${itemId}`);
+                validationMessage.style.display = 'block';
+
+                // Сбрасываем значение к предыдущему валидному
+                input.value = input.defaultValue;
+
+                // Скрываем сообщение через 3 секунды
+                setTimeout(() => {
+                    validationMessage.style.display = 'none';
+                }, 3000);
+            }
+        }
+
         // Обработчики для кнопок +/-
         document.querySelectorAll('.increment').forEach(button => {
             button.addEventListener('click', function () {
                 const itemId = this.getAttribute('data-item-id');
                 const input = this.parentElement.querySelector('input[name="quantity"]');
-                input.value = parseInt(input.value) + 1;
-                input.form.submit();
+                const currentValue = parseInt(input.value);
+                updateQuantity(itemId, currentValue + 1);
             });
         });
 
@@ -144,9 +177,74 @@
             button.addEventListener('click', function () {
                 const itemId = this.getAttribute('data-item-id');
                 const input = this.parentElement.querySelector('input[name="quantity"]');
-                if (parseInt(input.value) > 1) {
-                    input.value = parseInt(input.value) - 1;
-                    input.form.submit();
+                const currentValue = parseInt(input.value);
+
+                if (currentValue > 1) {
+                    updateQuantity(itemId, currentValue - 1);
+                } else {
+                    // Если количество становится 0, удаляем товар
+                    const removeForm = document.querySelector(`.remove-form [data-item-id="${itemId}"]`).closest('form');
+                    if (confirm('Удалить товар из корзины?')) {
+                        removeForm.submit();
+                    }
+                }
+            });
+        });
+
+        // Обработчик для ручного ввода количества
+        document.querySelectorAll('.quantity-input').forEach(input => {
+            input.addEventListener('change', function () {
+                const itemId = this.getAttribute('data-item-id');
+                const newQuantity = parseInt(this.value);
+
+                if (isNaN(newQuantity) || !validateQuantity(newQuantity)) {
+                    // Показываем сообщение об ошибке
+                    const validationMessage = document.getElementById(`validation-${itemId}`);
+                    validationMessage.style.display = 'block';
+
+                    // Сбрасываем значение к предыдущему валидному
+                    this.value = this.defaultValue;
+
+                    // Скрываем сообщение через 3 секунды
+                    setTimeout(() => {
+                        validationMessage.style.display = 'none';
+                    }, 3000);
+                } else {
+                    // Если значение валидно, отправляем форму
+                    this.closest('form').submit();
+                }
+            });
+
+            // Сохраняем исходное значение для отката
+            input.defaultValue = input.value;
+        });
+
+        // Запрещаем ввод отрицательных чисел и других недопустимых символов
+        document.querySelectorAll('.quantity-input').forEach(input => {
+            input.addEventListener('keydown', function (e) {
+                // Разрешаем: backspace, delete, tab, escape, enter, точки, цифры
+                if ([46, 8, 9, 27, 13, 110, 190].includes(e.keyCode) ||
+                    // Разрешаем: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                    (e.keyCode === 65 && e.ctrlKey === true) ||
+                    (e.keyCode === 67 && e.ctrlKey === true) ||
+                    (e.keyCode === 86 && e.ctrlKey === true) ||
+                    (e.keyCode === 88 && e.ctrlKey === true) ||
+                    // Разрешаем: цифры на основной клавиатуре и numpad
+                    (e.keyCode >= 48 && e.keyCode <= 57) ||
+                    (e.keyCode >= 96 && e.keyCode <= 105)) {
+                    return;
+                }
+                // Запрещаем все остальное
+                e.preventDefault();
+            });
+
+            input.addEventListener('input', function () {
+                // Удаляем любые символы, кроме цифр
+                this.value = this.value.replace(/[^0-9]/g, '');
+
+                // Ограничиваем максимальное значение
+                if (this.value > 99) {
+                    this.value = 99;
                 }
             });
         });

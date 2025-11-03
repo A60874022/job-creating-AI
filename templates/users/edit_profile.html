@@ -55,7 +55,7 @@
                                     <!-- Аватар и контактная информация -->
                                     <div class="col-lg-4 mb-4">
                                         <div class="text-center">
-                                            <!-- Замечание 6: Отображение аватара -->
+                                            <!-- Отображение аватара -->
                                             <div class="position-relative d-inline-block">
                                                 {% if user.profile.avatar and user.profile.avatar.url %}
                                                 <img src="{{ user.profile.avatar.url }}" class="rounded-circle mb-3"
@@ -76,13 +76,40 @@
                                             <p class="text-muted mb-3">📍 Город не указан</p>
                                             {% endif %}
 
-                                            <!-- Замечание 9: Загрузка аватара -->
+                                            <!-- Загрузка аватара с кастомным отображением -->
                                             <div class="mb-3">
-                                                <label for="{{ profile_form.avatar.id_for_label }}"
-                                                    class="form-label fw-bold">
+                                                <label class="form-label fw-bold">
                                                     📷 Изменить аватар
                                                 </label>
-                                                {{ profile_form.avatar }}
+                                                <div class="avatar-upload-container">
+                                                    {% if user.profile.avatar and user.profile.avatar.url %}
+                                                    <!-- Для существующего аватара -->
+                                                    <div class="existing-avatar">
+                                                        <div class="d-flex flex-column align-items-center gap-2 mb-2">
+                                                            <button type="button"
+                                                                class="btn btn-outline-primary btn-sm replace-avatar-btn">
+                                                                📁 Заменить аватар
+                                                            </button>
+                                                            <button type="button"
+                                                                class="btn btn-outline-danger btn-sm remove-avatar-btn">
+                                                                ❌ Удалить
+                                                            </button>
+                                                        </div>
+                                                        <div class="avatar-upload-field" style="display: none;">
+                                                            {{ profile_form.avatar }}
+                                                            <div class="form-text mt-2">Выберите новое изображение</div>
+                                                        </div>
+                                                        <input type="hidden" name="avatar-clear" id="avatar-clear"
+                                                            value="false">
+                                                    </div>
+                                                    {% else %}
+                                                    <!-- Для нового аватара -->
+                                                    <div class="new-avatar">
+                                                        {{ profile_form.avatar }}
+                                                        <div class="form-text mt-2">Выберите файл изображения</div>
+                                                    </div>
+                                                    {% endif %}
+                                                </div>
                                                 {% if profile_form.avatar.errors %}
                                                 <div class="text-danger small mt-1">
                                                     {{ profile_form.avatar.errors.0 }}
@@ -112,8 +139,8 @@
                                                 {% endif %}
                                             </div>
 
-                                            <!-- Замечания 3-4: Город с выбором -->
-                                            <div class="col-md-6 mb-3">
+                                            <!-- Город с выбором -->
+                                            <div class="col-12 mb-3">
                                                 <label for="{{ profile_form.city.id_for_label }}"
                                                     class="form-label fw-bold">
                                                     🏙️ Город
@@ -163,7 +190,7 @@
                         </div>
                     </div>
 
-                    <!-- Замечание 10: Блок удаления аккаунта -->
+                    <!-- Блок удаления аккаунта -->
                     <div class="card border-danger mt-4">
                         <div class="card-header bg-danger text-white">
                             <h6 class="mb-0">🗑️ Опасная зона</h6>
@@ -270,6 +297,15 @@
         border-radius: 15px;
         border: none;
     }
+
+    .avatar-upload-container .btn-sm {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.75rem;
+    }
+
+    .existing-avatar .btn {
+        min-width: 140px;
+    }
 </style>
 
 <script>
@@ -291,17 +327,61 @@
             updateCounter();
         }
 
-        // Предпросмотр аватара
-        const avatarInput = document.getElementById('{{ profile_form.avatar.id_for_label }}');
+        // Обработчики для аватара
+        const replaceAvatarBtn = document.querySelector('.replace-avatar-btn');
+        const removeAvatarBtn = document.querySelector('.remove-avatar-btn');
+        const avatarUploadField = document.querySelector('.avatar-upload-field');
+        const avatarClearInput = document.getElementById('avatar-clear');
+        const avatarDisplay = document.querySelector('.rounded-circle[alt*="Аватар"]');
+        const defaultAvatar = document.querySelector('.rounded-circle.bg-secondary');
+
+        if (replaceAvatarBtn) {
+            replaceAvatarBtn.addEventListener('click', function () {
+                avatarUploadField.style.display = 'block';
+                this.style.display = 'none';
+                removeAvatarBtn.style.display = 'none';
+            });
+        }
+
+        if (removeAvatarBtn) {
+            removeAvatarBtn.addEventListener('click', function () {
+                // Устанавливаем флаг для удаления аватара
+                avatarClearInput.value = 'true';
+
+                // Скрываем текущий аватар и показываем заглушку
+                if (avatarDisplay) {
+                    avatarDisplay.style.display = 'none';
+                }
+                if (defaultAvatar) {
+                    defaultAvatar.style.display = 'flex';
+                }
+
+                // Скрываем кнопки
+                replaceAvatarBtn.style.display = 'none';
+                removeAvatarBtn.style.display = 'none';
+
+                // Показываем сообщение
+                const message = document.createElement('div');
+                message.className = 'alert alert-info mt-2';
+                message.textContent = 'Аватар будет удален после сохранения профиля';
+                this.closest('.existing-avatar').appendChild(message);
+            });
+        }
+
+        // Предпросмотр нового аватара
+        const avatarInput = document.querySelector('input[type="file"][name="avatar"]');
         if (avatarInput) {
             avatarInput.addEventListener('change', function (e) {
                 const file = e.target.files[0];
                 if (file) {
                     const reader = new FileReader();
                     reader.onload = function (e) {
-                        const avatarImg = document.querySelector('.rounded-circle[alt*="Аватар"]');
-                        if (avatarImg) {
-                            avatarImg.src = e.target.result;
+                        if (avatarDisplay) {
+                            avatarDisplay.src = e.target.result;
+                            avatarDisplay.style.display = 'block';
+                            if (defaultAvatar) {
+                                defaultAvatar.style.display = 'none';
+                            }
                         }
                     };
                     reader.readAsDataURL(file);

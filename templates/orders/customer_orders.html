@@ -72,7 +72,14 @@
                                 <div class="col-md-6">
                                     <h6 class="fw-bold mb-1">{{ item.product.title }}</h6>
                                     <p class="text-muted small mb-1">{{ item.product.description|truncatewords:10 }}</p>
-                                    <small class="text-muted">Мастер: {{ item.product.master.email }}</small>
+                                    <small class="text-muted">
+                                        Мастер:
+                                        {% if item.product.master.get_full_name %}
+                                        {{ item.product.master.get_full_name }}
+                                        {% else %}
+                                        {{ item.product.master.username }}
+                                        {% endif %}
+                                    </small>
                                 </div>
                                 <div class="col-md-2 text-center">
                                     <span class="fw-bold">×{{ item.quantity }}</span>
@@ -90,10 +97,14 @@
                                     Обновлен: {{ order.updated_at|date:"d.m.Y H:i" }}
                                 </small>
                                 <div>
+                                    {% if order.status != 'доставлен' %}
                                     <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
                                         data-bs-target="#deleteOrderModal{{ order.id }}">
                                         🗑 Удалить заказ
                                     </button>
+                                    {% else %}
+                                    <span class="text-muted small">Доставленные заказы нельзя удалить</span>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -117,6 +128,12 @@
                                         <small>Это действие нельзя отменить. Все данные заказа будут удалены
                                             безвозвратно.</small>
                                     </p>
+                                    {% if order.status != 'оформлен' %}
+                                    <div class="alert alert-warning mt-3">
+                                        <small>⚠️ Внимание! Этот заказ уже обрабатывается. Удаление может вызвать
+                                            проблемы у мастера.</small>
+                                    </div>
+                                    {% endif %}
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary"
@@ -139,6 +156,9 @@
                 <div class="mb-4" style="font-size: 4rem;">📦</div>
                 <h3 class="fw-bold mb-3">У вас пока нет заказов</h3>
                 <p class="text-muted mb-4">Когда вы сделаете заказ, он появится на этой странице</p>
+                <a href="{% url 'products:catalog' %}" class="btn btn-primary btn-lg px-4">
+                    🛍️ Перейти в каталог
+                </a>
             </div>
             {% endif %}
         </div>

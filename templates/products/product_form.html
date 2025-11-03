@@ -101,22 +101,33 @@
                                 <div class="image-form mb-3 p-3 border rounded bg-light">
                                     <div class="row align-items-center">
                                         <div class="col-md-6">
-                                            <label class="form-label">Изображение</label>
-                                            {{ image_form.image }}
                                             {% if image_form.instance.image %}
-                                            <div class="mt-2">
-                                                <small>Текущее: </small>
-                                                <img src="{{ image_form.instance.image.url }}" alt="Current image"
-                                                    style="max-width: 100px; max-height: 100px;" class="img-thumbnail">
-                                                <div class="form-check mt-1">
-                                                    {{ image_form.DELETE }}
-                                                    <label class="form-check-label"
-                                                        for="{{ image_form.DELETE.id_for_label }}">
-                                                        Удалить
-                                                    </label>
+                                            <!-- Для существующих изображений -->
+                                            <div class="existing-image">
+                                                <label class="form-label">Текущее изображение</label>
+                                                <div class="d-flex align-items-center gap-3 mb-2">
+                                                    <img src="{{ image_form.instance.image.url }}" alt="Current image"
+                                                        style="width: 80px; height: 80px; object-fit: cover;"
+                                                        class="img-thumbnail">
+                                                    <div>
+                                                        <button type="button"
+                                                            class="btn btn-outline-secondary btn-sm replace-image-btn">
+                                                            📁 Заменить
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div class="image-upload-field" style="display: none;">
+                                                    {{ image_form.image }}
+                                                    <div class="form-text mt-1">Выберите новое изображение</div>
                                                 </div>
                                             </div>
+                                            {% else %}
+                                            <!-- Для новых изображений -->
+                                            <label class="form-label">Изображение</label>
+                                            {{ image_form.image }}
+                                            <div class="form-text">Выберите файл изображения</div>
                                             {% endif %}
+
                                             {% if image_form.image.errors %}
                                             <div class="text-danger small mt-1">
                                                 {% for error in image_form.image.errors %}
@@ -254,6 +265,15 @@
         color: #6c757d;
         margin-top: 2px;
     }
+
+    .existing-image .img-thumbnail {
+        border: 2px solid #8B4513;
+    }
+
+    .replace-image-btn {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.75rem;
+    }
 </style>
 
 <script>
@@ -278,6 +298,19 @@
         const descriptionField = document.getElementById('{{ form.description.id_for_label }}');
         const priceField = document.getElementById('{{ form.price.id_for_label }}');
         const productForm = document.getElementById('product-form');
+
+        // Обработчики для кнопок замены изображения
+        document.querySelectorAll('.replace-image-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const imageForm = this.closest('.existing-image');
+                const uploadField = imageForm.querySelector('.image-upload-field');
+                const currentImage = imageForm.querySelector('.d-flex');
+
+                // Показываем поле загрузки, скрываем текущее изображение и кнопку
+                uploadField.style.display = 'block';
+                currentImage.style.display = 'none';
+            });
+        });
 
         // Функция для обновления счетчиков символов
         function updateCounter(field, maxLength) {
