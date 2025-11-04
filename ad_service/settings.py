@@ -77,8 +77,7 @@ AUTH_USER_MODEL = 'users.User'
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
-
-'''DATABASES = {
+DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("POSTGRES_DB", "postgres"),
@@ -89,27 +88,27 @@ AUTHENTICATION_BACKENDS = [
         ),  # Имя контейнера с PostgreSQL в Docker Compose
         "PORT": os.environ.get("DB_PORT", "5432"),
     }
-}'''
+}
 
 
 # Вариант 2: Временное использование SQLite для разработки
-DATABASES = {
+'''DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
-}
+}'''
 
-'''CHANNEL_LAYERS = {
+CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
             "hosts": [("redis", 6379)],  # ✅ Используем имя контейнера
         },
     },
-}'''
+}
 
-CHANNEL_LAYERS = {
+'''CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
@@ -118,7 +117,7 @@ CHANNEL_LAYERS = {
         },
     },
 }
-
+'''
 # Cache (используем Redis)
 '''CACHES = {
     'default': {
