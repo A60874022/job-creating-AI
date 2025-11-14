@@ -38,20 +38,10 @@ class UserRegistrationForm(UserCreationForm):
         validators=[validate_email]
     )
     
-    is_master = forms.BooleanField(
-        required=False,
-        initial=False,
-        widget=forms.CheckboxInput(attrs={
-            'class': 'form-check-input',
-            'role': 'switch'
-        }),
-        label=_('Я мастер'),
-        help_text=_('Отметьте, если хотите продавать свои товары на платформе')
-    )
 
     class Meta:
         model = User
-        fields = ('email', 'password1', 'password2', 'is_master')
+        fields = ('email', 'password1', 'password2')
         
     def __init__(self, *args, **kwargs):
         """

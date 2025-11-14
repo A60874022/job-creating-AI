@@ -11,6 +11,7 @@ class Notification(models.Model):
         ('new_message', '💬 Новое сообщение'),
         ('product_favorited', '❤️ Товар добавлен в избранное'),
         ('system', '🔔 Системное уведомление'),
+        ('order_cancelled', '❌ Заказ отменен'),  # Добавим этот тип
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
@@ -41,3 +42,7 @@ class Notification(models.Model):
     @property
     def is_recent(self):
         return (timezone.now() - self.created_at).days < 1
+    
+    def can_delete(self):
+        """Можно удалять только прочитанные уведомления"""
+        return self.is_read

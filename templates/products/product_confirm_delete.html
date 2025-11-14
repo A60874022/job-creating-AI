@@ -16,7 +16,12 @@
                         <div class="card-body">
                             <h5 class="card-title">{{ product.title }}</h5>
                             <p class="text-muted">{{ product.description|truncatewords:20 }}</p>
-                            <span class="badge bg-brown">{{ product.price }} ₽</span>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge bg-brown">{{ product.price }} ₽</span>
+                                {% if product.category %}
+                                <span class="badge bg-light text-brown border">{{ product.category.name|title }}</span>
+                                {% endif %}
+                            </div>
                         </div>
                     </div>
 
@@ -40,4 +45,26 @@
         </div>
     </div>
 </div>
+
+<style>
+    .text-brown {
+        color: #8B4513;
+    }
+
+    .bg-brown {
+        background-color: #8B4513 !important;
+    }
+
+    .btn-primary {
+        background-color: #8B4513;
+        border-color: #8B4513;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .btn-primary:hover {
+        background-color: #654321;
+        border-color: #654321;
+    }
+</style>
 {% endblock %}

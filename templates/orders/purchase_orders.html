@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Заказы мастера | HandmadeMarket{% endblock %}
+{% block title %}Мои покупки | HandmadeMarket{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
@@ -9,12 +9,17 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h1 class="fw-bold mb-2">📦 Заказы на мои товары</h1>
-                    <p class="text-muted">Заказы покупателей на ваши handmade-товары</p>
+                    <h1 class="fw-bold mb-2">🛍️ Мои покупки</h1>
+                    <p class="text-muted">История ваших покупок handmade-товаров</p>
                 </div>
-                <a href="{% url 'notifications:notification_list' %}" class="btn btn-primary">
-                    🔔 Уведомления
-                </a>
+                <div>
+                    <a href="{% url 'orders:sale_orders' %}" class="btn btn-outline-primary me-2">
+                        📊 Мои продажи
+                    </a>
+                    <a href="{% url 'orders:cart_view' %}" class="btn btn-primary">
+                        🛒 Корзина
+                    </a>
+                </div>
             </div>
 
             {% if messages %}
@@ -37,8 +42,6 @@
                         <div class="card-header bg-white d-flex justify-content-between align-items-center">
                             <div>
                                 <h5 class="fw-bold mb-1">Заказ #{{ order.id }}</h5>
-                                <small class="text-muted">Покупатель: {{ order.customer.email }}</small>
-                                <br>
                                 <small class="text-muted">Создан: {{ order.created_at|date:"d.m.Y H:i" }}</small>
                             </div>
                             <div class="text-end">
@@ -51,16 +54,12 @@
                                     {{ order.get_status_display }}
                                 </span>
                                 <div class="mt-1">
-                                    {% with master_items=order.items.filter product__master=request.user %}
-                                    <strong class="text-brown">{{ master_items|length }} товар(ов)</strong>
-                                    {% endwith %}
+                                    <strong class="text-brown">{{ order.total_amount }} ₽</strong>
                                 </div>
                             </div>
                         </div>
                         <div class="card-body">
-                            <h6 class="fw-bold mb-3">Мои товары в заказе:</h6>
                             {% for item in order.items.all %}
-                            {% if item.product.master == request.user %}
                             <div
                                 class="row align-items-center mb-3 pb-3 {% if not forloop.last %}border-bottom{% endif %}">
                                 <div class="col-md-2">
@@ -78,7 +77,14 @@
                                 <div class="col-md-6">
                                     <h6 class="fw-bold mb-1">{{ item.product.title }}</h6>
                                     <p class="text-muted small mb-1">{{ item.product.description|truncatewords:10 }}</p>
-                                    <small class="text-muted">Артикул: {{ item.product.id }}</small>
+                                    <small class="text-muted">
+                                        🎨 Мастер:
+                                        {% if item.product.master.get_full_name %}
+                                        {{ item.product.master.get_full_name }}
+                                        {% else %}
+                                        {{ item.product.master.email }}
+                                        {% endif %}
+                                    </small>
                                 </div>
                                 <div class="col-md-2 text-center">
                                     <span class="fw-bold">×{{ item.quantity }}</span>
@@ -88,7 +94,6 @@
                                     <div class="text-muted small">за шт: {{ item.price_at_moment }} ₽</div>
                                 </div>
                             </div>
-                            {% endif %}
                             {% endfor %}
                         </div>
                         <div class="card-footer bg-white">
@@ -97,10 +102,14 @@
                                     Обновлен: {{ order.updated_at|date:"d.m.Y H:i" }}
                                 </small>
                                 <div>
+                                    {% if order.status != 'доставлен' %}
                                     <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
                                         data-bs-target="#deleteOrderModal{{ order.id }}">
                                         🗑 Удалить заказ
                                     </button>
+                                    {% else %}
+                                    <span class="text-muted small">Доставленные заказы нельзя удалить</span>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
@@ -124,15 +133,17 @@
                                         <small>Это действие нельзя отменить. Все данные заказа будут удалены
                                             безвозвратно.</small>
                                     </p>
+                                    {% if order.status != 'оформлен' %}
                                     <div class="alert alert-warning mt-3">
-                                        <small>⚠️ Внимание! При удалении заказа покупатель получит уведомление об
-                                            отмене.</small>
+                                        <small>⚠️ Внимание! Этот заказ уже обрабатывается. Удаление может вызвать
+                                            проблемы у мастера.</small>
                                     </div>
+                                    {% endif %}
                                 </div>
                                 <div class="modal-footer">
                                     <button type="button" class="btn btn-secondary"
                                         data-bs-dismiss="modal">Отмена</button>
-                                    <form action="{% url 'orders:delete_master' order.id %}" method="post">
+                                    <form action="{% url 'orders:delete_order' order.id %}" method="post">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-danger">
                                             🗑 Удалить заказ
@@ -147,12 +158,17 @@
             </div>
             {% else %}
             <div class="text-center py-5">
-                <div class="mb-4" style="font-size: 4rem;">📦</div>
-                <h3 class="fw-bold mb-3">Заказов пока нет</h3>
-                <p class="text-muted mb-4">Когда покупатели будут заказывать ваши товары, здесь появятся заказы</p>
-                <a href="{% url 'products:product_add' %}" class="btn btn-primary btn-lg px-4">
-                    🎨 Добавить больше товаров
-                </a>
+                <div class="mb-4" style="font-size: 4rem;">🛍️</div>
+                <h3 class="fw-bold mb-3">У вас пока нет покупок</h3>
+                <p class="text-muted mb-4">Когда вы сделаете заказ, он появится на этой странице</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="{% url 'products:catalog' %}" class="btn btn-primary btn-lg px-4">
+                        🛍️ Перейти в каталог
+                    </a>
+                    <a href="{% url 'products:my_products' %}" class="btn btn-outline-primary btn-lg px-4">
+                        🎨 Мои товары
+                    </a>
+                </div>
             </div>
             {% endif %}
         </div>

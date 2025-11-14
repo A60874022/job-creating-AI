@@ -58,9 +58,7 @@ class User(AbstractUser):
         blank=True, 
         null=True
     )
-    is_master = models.BooleanField(_('is master'), default=False)
-    
-    # Убираем username, используем email
+   
     username = None
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

@@ -32,7 +32,6 @@ INSTALLED_APPS = [
     'products',
     'orders', 
     'channels',
-    'messaging',
     'chat',
     'notifications',
     'pages',
@@ -62,6 +61,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'notifications.context_processors.notifications_context',
+                'notifications.context_processors.chat_context',
             ],
         },
     },
@@ -116,8 +116,10 @@ CHANNEL_LAYERS = {
             "prefix": "myapp",  # Префикс для ключей (изменяйте под свой проект)
         },
     },
-}
-'''
+}'''
+
+
+
 # Cache (используем Redis)
 '''CACHES = {
     'default': {
@@ -198,3 +200,80 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+
+
+# settings.py
+import os
+from pathlib import Path
+
+# Используем папку в проекте
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+os.makedirs(LOG_DIR, exist_ok=True)
+
+ADMINS = [
+    ('Admin Name', os.environ.get('ADMIN_EMAIL', 'anton60874022@mail.ru')),
+    # Можно добавить несколько администраторов
+    # ('Second Admin', 'admin2@example.com'),
+]
+
+
+# Обновляем настройки логирования чтобы включить email уведомления
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'ERROR',
+            'class': 'logging.handlers.RotatingFileHandler',  # Меняем на ротируемый
+            'filename': os.path.join(LOG_DIR, 'errors.log'),
+            'maxBytes': 5 * 1024 * 1024,  # 5MB максимальный размер
+            'backupCount': 3,  # Хранить 3 backup файла
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+        'console': {
+            'level': 'ERROR',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'mail_admins': {
+            'level': 'ERROR',
+            'class': 'django.utils.log.AdminEmailHandler',
+            'include_html': False,
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['file', 'console', 'mail_admins'],  # Добавляем email для ошибок запросов
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.security': {
+            'handlers': ['file', 'console', 'mail_admins'],  # Ошибки безопасности тоже по email
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        '': {
+            'handlers': ['file', 'console'],
+            'level': 'ERROR',
+        },
+    },
+}
+

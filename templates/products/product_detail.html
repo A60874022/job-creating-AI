@@ -101,12 +101,12 @@
                                 </div>
                                 {% endif %}
                                 <div>
-                                    <h6 class="fw-bold mb-1">Мастер</h6>
+                                    <h6 class="fw-bold mb-1">🎨 Мастер</h6>
                                     <p class="text-muted mb-0">
                                         {% if product.master.get_full_name %}
                                         {{ product.master.get_full_name }}
                                         {% else %}
-                                        {{ product.master.username }}
+                                        {{ product.master.email }}
                                         {% endif %}
                                     </p>
                                     {% if product.master.profile.city %}
@@ -115,16 +115,17 @@
                                 </div>
                             </div>
 
-                            <!-- Кнопка "Написать мастеру" -->
-                            {% if user.is_authenticated and user != product.master %}
+                            <!-- Кнопка "Обсудить товар" -->
+                            {% if user.is_authenticated and not is_own_product %}
                             <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
-                                class="btn btn-outline-primary btn-sm" title="Начать диалог с мастером">
-                                💬 Написать
+                                class="btn btn-outline-primary btn-sm"
+                                title="Начать обсуждение этого товара с мастером">
+                                💬 Обсудить товар
                             </a>
                             {% elif not user.is_authenticated %}
                             <a href="{% url 'users:login' %}?next={{ request.path }}"
-                                class="btn btn-outline-primary btn-sm" title="Войдите, чтобы написать мастеру">
-                                💬 Написать
+                                class="btn btn-outline-primary btn-sm" title="Войдите, чтобы обсудить товар с мастером">
+                                💬 Обсудить товар
                             </a>
                             {% endif %}
                         </div>
@@ -149,20 +150,20 @@
 
                     <!-- Описание -->
                     <div class="mb-4">
-                        <h5 class="fw-bold mb-2">Описание</h5>
+                        <h5 class="fw-bold mb-2">Описание товара</h5>
                         <p class="text-muted" style="line-height: 1.6;">{{ product.description }}</p>
                     </div>
 
                     <!-- Детали товара -->
                     <div class="mb-4">
-                        <h5 class="fw-bold mb-3">Детали товара</h5>
+                        <h5 class="fw-bold mb-3">📋 Детали товара</h5>
                         <div class="row">
                             <div class="col-6">
-                                <small class="text-muted">Дата создания</small>
+                                <small class="text-muted">📅 Дата создания</small>
                                 <p class="mb-2 fw-bold">{{ product.created_at|date:"d.m.Y" }}</p>
                             </div>
                             <div class="col-6">
-                                <small class="text-muted">Статус</small>
+                                <small class="text-muted">📊 Статус</small>
                                 <p class="mb-2 fw-bold">
                                     {% if product.is_active %}
                                     <span class="text-success">● Активный</span>
@@ -176,13 +177,25 @@
 
                     <!-- Кнопки действий -->
                     <div class="d-grid gap-2 d-md-flex mb-4">
-                        <!-- Кнопка добавления в корзину -->
+                        <!-- Исправленная кнопка добавления в корзину -->
+                        {% if user.is_authenticated %}
+                        {% if not is_own_product %}
                         <form method="post" action="{% url 'orders:add_to_cart' product.id %}" class="flex-fill">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-primary btn-lg w-100">
                                 🛒 Добавить в корзину
                             </button>
                         </form>
+                        {% else %}
+                        <button class="btn btn-outline-secondary btn-lg w-100" disabled title="Это ваш товар">
+                            🛒 Ваш товар
+                        </button>
+                        {% endif %}
+                        {% else %}
+                        <a href="{% url 'users:login' %}?next={{ request.path }}" class="btn btn-primary btn-lg w-100">
+                            🛒 Войдите, чтобы добавить в корзину
+                        </a>
+                        {% endif %}
 
                         <!-- Кнопка избранного -->
                         <div class="favorite-section ms-2">
@@ -219,21 +232,33 @@
 
                     <!-- Дополнительные кнопки -->
                     <div class="d-grid gap-2">
-                        <!-- Основная кнопка "Написать мастеру" для мобильных -->
-                        {% if user.is_authenticated and user != product.master %}
+                        <!-- Кнопка "Обсудить товар" для мобильных -->
+                        {% if user.is_authenticated and not is_own_product %}
                         <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
                             class="btn btn-outline-brown btn-lg">
-                            💬 Написать мастеру
+                            💬 Обсудить товар с мастером
                         </a>
                         {% elif not user.is_authenticated %}
                         <a href="{% url 'users:login' %}?next={{ request.path }}" class="btn btn-outline-brown btn-lg">
-                            💬 Написать мастеру
+                            💬 Обсудить товар с мастером
                         </a>
                         {% endif %}
 
+                        <!-- Информация о чатах по товару -->
+                        {% if user.is_authenticated %}
+                        <div class="text-center mt-2">
+                            <small class="text-muted">
+                                💬 Каждый товар имеет отдельный чат для обсуждения
+                            </small>
+                        </div>
+                        {% endif %}
+
+                        {% if user.is_authenticated %}
                         <a href="{% url 'orders:cart_view' %}" class="btn btn-outline-brown">
                             📦 Перейти в корзину
                         </a>
+                        {% endif %}
+
                         <a href="{% url 'products:catalog' %}" class="btn btn-outline-secondary">
                             ← Вернуться в каталог
                         </a>
@@ -274,15 +299,15 @@
                             </div>
                         </div>
                         <div class="col-md-4 text-md-end">
-                            {% if user.is_authenticated and user != product.master %}
+                            {% if user.is_authenticated and not is_own_product %}
                             <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
                                 class="btn btn-primary btn-lg mt-3">
-                                💬 Начать диалог
+                                💬 Обсудить этот товар
                             </a>
                             {% elif not user.is_authenticated %}
                             <a href="{% url 'users:login' %}?next={{ request.path }}"
                                 class="btn btn-primary btn-lg mt-3">
-                                💬 Начать диалог
+                                💬 Обсудить этот товар
                             </a>
                             {% endif %}
                         </div>
@@ -293,22 +318,116 @@
     </div>
 
     <!-- Похожие товары -->
+    {% if not is_own_product %}
     <div class="row mt-5">
         <div class="col-12">
-            <h3 class="fw-bold mb-4">Другие товары мастера</h3>
+            <h3 class="fw-bold mb-4">🎨 Другие товары мастера</h3>
             <div class="row">
                 <div class="col-12 text-center py-4">
                     <p class="text-muted">Здесь будут показаны другие товары мастера
                         {% if product.master.get_full_name %}
                         {{ product.master.get_full_name }}
                         {% else %}
-                        {{ product.master.username }}
+                        {{ product.master.email }}
                         {% endif %}
                     </p>
+                    <small class="text-muted">
+                        💡 Каждый товар имеет отдельный чат для обсуждения с мастером
+                    </small>
                 </div>
             </div>
         </div>
     </div>
+    {% endif %}
+
+    <!-- Кнопки управления для владельца товара -->
+    {% if is_own_product %}
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">⚙️ Управление товаром</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex gap-3 flex-wrap">
+                        <a href="{% url 'products:product_edit' product.pk %}" class="btn btn-primary btn-lg">
+                            ✏️ Редактировать товар
+                        </a>
+                        <a href="{% url 'products:my_products' %}" class="btn btn-outline-primary btn-lg">
+                            📋 Мои товары
+                        </a>
+                        <a href="{% url 'chat:dialogue_list' %}" class="btn btn-outline-brown btn-lg">
+                            💬 Мои диалоги по товарам
+                        </a>
+                        <button type="button" class="btn btn-outline-danger btn-lg" data-bs-toggle="modal"
+                            data-bs-target="#deleteModal">
+                            🗑️ Удалить товар
+                        </button>
+                    </div>
+
+                    <!-- Информация для мастера -->
+                    <div class="mt-3 p-3 bg-light rounded">
+                        <h6 class="fw-bold mb-2">💡 Информация для мастера</h6>
+                        <p class="text-muted small mb-0">
+                            Покупатели могут начать отдельный чат для обсуждения этого товара.
+                            Все диалоги по вашим товарам доступны в разделе "Мои диалоги".
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно удаления товара -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title fw-bold" id="deleteModalLabel">
+                        🗑️ Удаление товара
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <div class="mb-4" style="font-size: 3rem;">⚠️</div>
+                    <h6 class="fw-bold mb-3">Вы уверены, что хотите удалить товар?</h6>
+                    <div class="card border-0 bg-light mb-3">
+                        <div class="card-body py-3">
+                            <h6 class="fw-bold mb-1">{{ product.title }}</h6>
+                            <p class="text-muted small mb-2">{{ product.description|truncatewords:10 }}</p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold text-brown">{{ product.price }} ₽</span>
+                                {% if product.category %}
+                                <span class="badge bg-brown">{{ product.category.name|title }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <strong>Внимание!</strong><br>
+                        При удалении товара также будут удалены все диалоги, связанные с этим товара.
+                    </div>
+
+                    <p class="text-danger small mb-0">
+                        ❗ Это действие нельзя отменить. Все данные о товаре и связанные диалоги будут удалены.
+                    </p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <button type="button" class="btn btn-outline-secondary px-4" data-bs-dismiss="modal">
+                        ❌ Отмена
+                    </button>
+                    <form method="post" action="{% url 'products:product_delete' product.pk %}" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger px-4">
+                            ✅ Удалить
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Модальное окно для просмотра изображений в полном размере -->
@@ -461,6 +580,11 @@
 
         .img-thumbnail {
             height: 60px !important;
+        }
+
+        .btn-lg {
+            font-size: 0.9rem;
+            padding: 0.75rem 1rem;
         }
     }
 </style>

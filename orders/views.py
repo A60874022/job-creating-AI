@@ -1,3 +1,4 @@
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -5,137 +6,174 @@ from django.db import transaction
 from django.utils import timezone
 from products.models import Product
 from .models import Cart, CartItem, Order, OrderItem
+from notifications.services import NotificationService
+
+logger = logging.getLogger(__name__)
 
 @login_required
 def cart_view(request):
     """Просмотр корзины"""
-    cart, created = Cart.objects.get_or_create(user=request.user)
-    cart_items = cart.items.select_related('product', 'product__master', 'product__category').all()
-    
-    print(f"Cart: {cart}")
-    print(f"Cart items: {list(cart_items)}")
-    
-    context = {
-        'cart': cart,
-        'cart_items': cart_items,
-    }
-    return render(request, 'orders/cart.html', context)
+    try:
+        cart, created = Cart.objects.get_or_create(user=request.user)
+        cart_items = cart.items.select_related('product', 'product__master', 'product__category').all()
+        
+        context = {
+            'cart': cart,
+            'cart_items': cart_items,
+        }
+        return render(request, 'orders/cart.html', context)
+        
+    except Exception as e:
+        logger.error("Error loading cart for user %s: %s", 
+                    request.user.id, str(e), exc_info=True)
+        messages.error(request, "Ошибка при загрузке корзины")
+        return redirect('products:catalog')
 
 @login_required
 def add_to_cart(request, product_id):
     """Добавление товара в корзину"""
-    product = get_object_or_404(Product, id=product_id, is_active=True)
-    
-    # Проверяем, не является ли пользователь мастером этого товара
-    if product.master == request.user:
-        messages.error(request, 'Вы не можете добавить в корзину свой собственный товар')
-        return redirect('products:product_detail', pk=product_id)  # ← ИСПРАВЛЕНО
-    
-    cart, created = Cart.objects.get_or_create(user=request.user)
-    
-    # Проверяем, есть ли уже этот товар в корзине
-    cart_item, item_created = CartItem.objects.get_or_create(
-        cart=cart,
-        product=product,
-        defaults={'quantity': 1}
-    )
-    
-    if not item_created:
-        # Если товар уже есть в корзине, увеличиваем количество
-        cart_item.quantity += 1
-        cart_item.save()
-        messages.success(request, f'Количество товара "{product.title}" увеличено до {cart_item.quantity}')
-    else:
-        messages.success(request, f'Товар "{product.title}" добавлен в корзину!')
-    
-    return redirect('orders:cart_view')  # ← Эта строка правильная
+    try:
+        product = get_object_or_404(Product, id=product_id, is_active=True)
+        
+        # ВОССТАНАВЛИВАЕМ ПРОВЕРКУ: мастер не может покупать свои товары
+        if product.master == request.user:
+            messages.error(request, 'Вы не можете покупать свои собственные товары')
+            return redirect('products:product_detail', product_id=product_id)
+        
+        cart, created = Cart.objects.get_or_create(user=request.user)
+        
+        # Проверяем, есть ли уже этот товар в корзине
+        cart_item, item_created = CartItem.objects.get_or_create(
+            cart=cart,
+            product=product,
+            defaults={'quantity': 1}
+        )
+        
+        if not item_created:
+            # Если товар уже есть в корзине, увеличиваем количество
+            cart_item.quantity += 1
+            cart_item.save()
+            messages.success(request, f'Количество товара "{product.title}" увеличено до {cart_item.quantity}')
+        else:
+            messages.success(request, f'Товар "{product.title}" добавлен в корзину!')
+        
+        return redirect('orders:cart_view')
+        
+    except Exception as e:
+        logger.error("Error adding product %s to cart for user %s: %s", 
+                    product_id, request.user.id, str(e), exc_info=True)
+        messages.error(request, "Ошибка при добавлении товара в корзину")
+        return redirect('products:product_detail', product_id=product_id)
 
 @login_required
 def update_cart_item(request, item_id):
     """Обновление количества товара в корзине"""
-    cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
-    
-    if request.method == 'POST':
-        quantity = int(request.POST.get('quantity', 1))
+    try:
+        cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
         
-        if quantity > 0:
-            cart_item.quantity = quantity
-            cart_item.save()
-            messages.success(request, f'Количество товара обновлено до {quantity}')
-        else:
-            cart_item.delete()
-            messages.success(request, 'Товар удален из корзины')
-    
-    return redirect('orders:cart_view')
+        if request.method == 'POST':
+            quantity = int(request.POST.get('quantity', 1))
+            
+            if quantity > 0:
+                cart_item.quantity = quantity
+                cart_item.save()
+            else:
+                cart_item.delete()
+                messages.success(request, 'Товар удален из корзины')
+        
+        return redirect('orders:cart_view')
+        
+    except Exception as e:
+        logger.error("Error updating cart item %s for user %s: %s", 
+                    item_id, request.user.id, str(e), exc_info=True)
+        messages.error(request, "Ошибка при обновлении корзины")
+        return redirect('orders:cart_view')
 
 @login_required
 def remove_from_cart(request, item_id):
     """Удаление товара из корзины"""
-    cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
-    product_title = cart_item.product.title
-    cart_item.delete()
-    
-    messages.success(request, f'Товар "{product_title}" удален из корзины')
-    return redirect('orders:cart_view')
-
-from notifications.services import NotificationService
+    try:
+        cart_item = get_object_or_404(CartItem, id=item_id, cart__user=request.user)
+        product_title = cart_item.product.title
+        cart_item.delete()
+        
+        messages.success(request, f'Товар "{product_title}" удален из корзины')
+        return redirect('orders:cart_view')
+        
+    except Exception as e:
+        logger.error("Error removing cart item %s for user %s: %s", 
+                    item_id, request.user.id, str(e), exc_info=True)
+        messages.error(request, "Ошибка при удалении товара из корзины")
+        return redirect('orders:cart_view')
 
 @login_required
 @transaction.atomic
 def create_order(request):
     """Создание заказа из корзины"""
-    print(f"=== DEBUG: Начало создания заказа для пользователя {request.user.email} ===")
-    
-    cart = get_object_or_404(Cart, user=request.user)
-    cart_items = cart.items.select_related('product').all()
-    
-    print(f"DEBUG: Найдено товаров в корзине: {cart_items.count()}")
-    
-    if not cart_items:
-        messages.error(request, 'Ваша корзина пуста')
-        return redirect('orders:cart_view')
-    
-    # Проверяем, что все товары еще активны
-    for item in cart_items:
-        print(f"DEBUG: Проверка товара: {item.product.title}, тип: {type(item.product)}, ID: {item.product.id}")
-        if not item.product.is_active:
-            messages.error(request, f'Товар "{item.product.title}" больше не доступен')
-            return redirect('orders:cart_view')
-    
     try:
+        cart = get_object_or_404(Cart, user=request.user)
+        cart_items = cart.items.select_related('product').all()
+        
+        if not cart_items:
+            messages.error(request, 'Ваша корзина пуста')
+            return redirect('orders:cart_view')
+        
+        # ПРОВЕРКА 1: Удаляем товары пользователя из корзины перед созданием заказа
+        own_products_removed = False
+        items_to_remove = []
+        
+        for item in cart_items:
+            # Проверяем, что товар активен
+            if not item.product.is_active:
+                messages.error(request, f'Товар "{item.product.title}" больше не доступен')
+                return redirect('orders:cart_view')
+            
+            # Проверяем, что товар не принадлежит пользователю
+            if item.product.master == request.user:
+                items_to_remove.append(item)
+                own_products_removed = True
+        
+        # Удаляем собственные товары пользователя
+        for item in items_to_remove:
+            item.delete()
+        
+        # Обновляем список товаров после удаления
+        cart_items = cart.items.select_related('product').all()
+        
+        # Если после удаления своих товаров корзина пуста
+        if not cart_items:
+            if own_products_removed:
+                messages.error(request, 'Вы не можете покупать свои собственные товары. Эти товары были удалены из корзины.')
+            else:
+                messages.error(request, 'Ваша корзина пуста')
+            return redirect('orders:cart_view')
+        
+        # Показываем предупреждение, если были удалены собственные товары
+        if own_products_removed:
+            messages.warning(request, 'Ваши собственные товары были удалены из корзины перед оформлением заказа.')
+        
         # Создаем заказ
-        print("DEBUG: Создаем объект Order...")
         order = Order.objects.create(customer=request.user, status='оформлен')
-        print(f"DEBUG: Создан заказ ID: {order.id}")
         
         # Создаем элементы заказа
         total_amount = 0
         masters_notified = set()
         
         for cart_item in cart_items:
-            print(f"DEBUG: Обрабатываем CartItem: {cart_item.product.title}")
-            print(f"DEBUG: Тип cart_item.product: {type(cart_item.product)}")
-            print(f"DEBUG: cart_item.product.__class__: {cart_item.product.__class__}")
-            print(f"DEBUG: cart_item.product.id: {cart_item.product.id}")
-            
-            # Создаем элемент заказа
-            print("DEBUG: Создаем OrderItem...")
             order_item = OrderItem.objects.create(
                 order=order,
-                product=cart_item.product,  # Это должен быть объект Product
+                product=cart_item.product,
                 quantity=cart_item.quantity,
                 price_at_moment=cart_item.product.price
             )
-            print(f"DEBUG: Создан OrderItem ID: {order_item.id}")
             
             total_amount += cart_item.product.price * cart_item.quantity
             
-            # Создаем уведомление для мастера
+            # Создаем уведомление для мастера (если это не наш собственный товар)
             master = cart_item.product.master
-            print(f"DEBUG: Мастер товара: {master.email}, тип: {type(master)}")
             
-            if master.id not in masters_notified:
-                print(f"DEBUG: Вызываем NotificationService для мастера {master.email}")
+            # Дополнительная проверка (на всякий случай)
+            if master.id != request.user.id and master.id not in masters_notified:
                 NotificationService.create_order_notification(order, master)
                 masters_notified.add(master.id)
         
@@ -146,43 +184,41 @@ def create_order(request):
         # Очищаем корзину
         cart.items.all().delete()
         
-        print(f"DEBUG: Заказ успешно создан! ID: {order.id}, Сумма: {total_amount}")
+        logger.info("Order created successfully. Order ID: %s, User: %s, Amount: %s", 
+                   order.id, request.user.id, total_amount)
+        
         messages.success(request, f'Заказ #{order.id} успешно оформлен! Сумма: {total_amount} ₽')
-        return redirect('orders:customer_orders')
+        return redirect('orders:purchase_orders')
     
     except Exception as e:
-        print(f"=== DEBUG: ОШИБКА ПРИ СОЗДАНИИ ЗАКАЗА ===")
-        print(f"Тип ошибки: {type(e)}")
-        print(f"Сообщение ошибки: {str(e)}")
-        import traceback
-        print("Трассировка:")
-        traceback.print_exc()
-        print("==========================================")
-        
+        logger.error("Error creating order for user %s: %s", 
+                    request.user.id, str(e), exc_info=True)
         messages.error(request, f'Ошибка при создании заказа: {str(e)}')
         return redirect('orders:cart_view')
 
 @login_required
-def customer_orders(request):
-    """Страница заказов покупателя"""
+def purchase_orders(request):
+    """Страница покупок (заказы как покупателя)"""
     try:
         orders = Order.objects.filter(customer=request.user).prefetch_related(
             'items__product__images',
             'items__product__master'
         ).order_by('-created_at')
+        
+        context = {
+            'orders': orders
+        }
+        return render(request, 'orders/purchase_orders.html', context)
+        
     except Exception as e:
-        print(f"Error loading orders: {e}")
-        orders = []
-    
-    context = {
-        'orders': orders
-    }
-    return render(request, 'orders/customer_orders.html', context)
+        logger.error("Error loading purchase orders for user %s: %s", 
+                    request.user.id, str(e), exc_info=True)
+        messages.error(request, "Ошибка при загрузке заказов")
+        return redirect('products:catalog')
 
-# orders/views.py (добавьте эту функцию)
 @login_required
-def master_orders(request):
-    """Страница заказов для мастера"""
+def sale_orders(request):
+    """Страница продаж (заказы на товары мастера)"""
     try:
         # Заказы, где есть товары этого мастера
         orders = Order.objects.filter(
@@ -191,14 +227,17 @@ def master_orders(request):
             'items__product__images',
             'customer'
         ).order_by('-created_at')
+        
+        context = {
+            'orders': orders
+        }
+        return render(request, 'orders/sale_orders.html', context)
+        
     except Exception as e:
-        print(f"Error loading master orders: {e}")
-        orders = []
-    
-    context = {
-        'orders': orders
-    }
-    return render(request, 'orders/master_orders.html', context)
+        logger.error("Error loading sale orders for user %s: %s", 
+                    request.user.id, str(e), exc_info=True)
+        messages.error(request, "Ошибка при загрузке заказов")
+        return redirect('products:catalog')
 
 @login_required
 @transaction.atomic
@@ -211,50 +250,52 @@ def delete_order(request, order_id):
         order = get_object_or_404(Order, id=order_id, customer=request.user)
         
         # Сохраняем информацию для сообщения
-        order_id = order.id
+        order_id_val = order.id
         order_status = order.status
         
         # Дополнительная проверка: нельзя удалять доставленные заказы
         if order.status == 'доставлен':
             messages.error(request, 'Нельзя удалить доставленный заказ.')
-            return redirect('orders:customer_orders')
+            return redirect('orders:purchase_orders')
         
-        # Создаем уведомления для мастеров перед удалением
+        # Создаем уведомления для мастеров перед удалением (если это не наш собственный товар)
         masters_notified = set()
         for item in order.items.all():
             master = item.product.master
-            if master.id not in masters_notified:
+            if master.id != request.user.id and master.id not in masters_notified:
                 try:
                     # Уведомляем мастера об отмене заказа покупателем
                     NotificationService.create_cancellation_notification(order, master, request.user)
                     masters_notified.add(master.id)
                 except Exception as e:
-                    print(f"Ошибка при создании уведомления для мастера {master.email}: {e}")
+                    logger.error("Error creating cancellation notification for master %s: %s", 
+                                master.id, str(e))
         
         # Удаляем заказ
         order.delete()
         
-        messages.success(request, f'Заказ #{order_id} успешно удален.')
+        logger.info("Order deleted by customer. Order ID: %s, User: %s", 
+                   order_id_val, request.user.id)
+        
+        messages.success(request, f'Заказ #{order_id_val} успешно удален.')
         
     except Order.DoesNotExist:
+        logger.error("Order not found for deletion. Order ID: %s, User: %s", 
+                    order_id, request.user.id)
         messages.error(request, 'Заказ не найден или у вас нет прав для его удаления.')
     except Exception as e:
-        print(f"Ошибка при удалении заказа: {e}")
+        logger.error("Error deleting order %s by user %s: %s", 
+                    order_id, request.user.id, str(e), exc_info=True)
         messages.error(request, f'Ошибка при удалении заказа: {str(e)}')
     
-    return redirect('orders:customer_orders')
+    return redirect('orders:purchase_orders')
 
 @login_required
 @transaction.atomic
-def delete_master(request, order_id):
+def delete_sale_order(request, order_id):
     """
-    Представление для удаления заказа мастером с улучшенной логикой
+    Удаление заказа мастером с улучшенной логикой
     """
-    # Проверяем, что пользователь - мастер
-    if not request.user.is_master:
-        messages.error(request, "У вас нет прав для выполнения этого действия.")
-        return redirect('orders:master_orders')
-    
     try:
         # Получаем заказ
         order = get_object_or_404(Order, id=order_id)
@@ -263,23 +304,31 @@ def delete_master(request, order_id):
         master_items = order.items.filter(product__master=request.user)
         if not master_items.exists():
             messages.error(request, "Этот заказ не содержит ваших товаров.")
-            return redirect('orders:master_orders')
+            return redirect('orders:sale_orders')
         
-        # Уведомляем покупателя об отмене заказа мастером
-        try:
-            NotificationService.create_master_cancellation_notification(order, request.user)
-        except Exception as e:
-            print(f"Ошибка при создании уведомления для покупателя: {e}")
+        # Уведомляем покупателя об отмене заказа мастером (если это не наш собственный заказ)
+        if order.customer.id != request.user.id:
+            try:
+                NotificationService.create_master_cancellation_notification(order, request.user)
+            except Exception as e:
+                logger.error("Error creating master cancellation notification for customer %s: %s", 
+                            order.customer.id, str(e))
         
-        order_id = order.id
+        order_id_val = order.id
         order.delete()
         
-        messages.success(request, f'Заказ #{order_id} был успешно удален.')
+        logger.info("Sale order deleted by master. Order ID: %s, User: %s", 
+                   order_id_val, request.user.id)
+        
+        messages.success(request, f'Заказ #{order_id_val} был успешно удален.')
         
     except Order.DoesNotExist:
+        logger.error("Sale order not found for deletion. Order ID: %s, User: %s", 
+                    order_id, request.user.id)
         messages.error(request, "Заказ не найден.")
     except Exception as e:
-        print(f"Ошибка при удалении заказа мастером: {e}")
+        logger.error("Error deleting sale order %s by user %s: %s", 
+                    order_id, request.user.id, str(e), exc_info=True)
         messages.error(request, f'При удалении заказа произошла ошибка: {str(e)}')
     
-    return redirect('orders:master_orders')
+    return redirect('orders:sale_orders')

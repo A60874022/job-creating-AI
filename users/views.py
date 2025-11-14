@@ -9,7 +9,7 @@ from django.shortcuts import redirect, get_object_or_404
 from django.contrib.auth.views import LoginView, PasswordResetView, PasswordResetConfirmView, PasswordResetCompleteView
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import logout
-from django.shortcuts import render, redirect, get_object_or_404  #
+from django.shortcuts import render, redirect, get_object_or_404
 
 from .models import User
 from .forms import UserRegistrationForm, UserLoginForm, EmailVerificationForm, UserEditForm, ProfileEditForm, AccountDeleteForm
@@ -28,44 +28,49 @@ class RegisterView(CreateView):
     success_url = reverse_lazy('users:verify_email_code')
 
     def form_valid(self, form):
-        password = form.cleaned_data['password1']
-        user = getattr(form, 'instance', None)
+        try:
+            password = form.cleaned_data['password1']
+            user = getattr(form, 'instance', None)
 
-        if user and user.pk:
-            # Существующий пользователь (не подтверждён)
-            user.set_password(password)  # обновляем пароль
-            user.save()
-        else:
-            # Новый пользователь
-            user = form.save(commit=False)
-            user.is_active = True
-            user.email_verified = False
-            user.save()
+            if user and user.pk:
+                # Существующий пользователь (не подтверждён)
+                user.set_password(password)  # обновляем пароль
+                user.save()
+            else:
+                # Новый пользователь
+                user = form.save(commit=False)
+                user.is_active = True
+                user.email_verified = False
+                user.save()
 
-        # Генерация кода и отправка email
-        verification_code = user.generate_verification_code()
-        email_service.send_verification_code_email(
-            user_email=user.email,
-            verification_code=verification_code,
-            context={'user_name': user.get_short_name()}
-        )
+            # Генерация кода и отправка email
+            verification_code = user.generate_verification_code()
+            email_service.send_verification_code_email(
+                user_email=user.email,
+                verification_code=verification_code,
+                context={'user_name': user.get_short_name()}
+            )
 
-        # Сохраняем в сессии
-        self.request.session['user_id_for_verification'] = user.id
-        self.request.session['user_email'] = user.email
+            # Сохраняем в сессии
+            self.request.session['user_id_for_verification'] = user.id
+            self.request.session['user_email'] = user.email
 
-        messages.success(self.request, _('Код подтверждения отправлен на ваш email.'))
-        return redirect(self.success_url)
-
-
+            messages.success(self.request, _('Код подтверждения отправлен на ваш email.'))
+            return redirect(self.success_url)
+            
+        except Exception as e:
+            logger.error("Error during user registration: %s", str(e), exc_info=True)
+            messages.error(self.request, _('Ошибка при регистрации. Попробуйте позже.'))
+            return self.form_invalid(form)
 
     def form_invalid(self, form):
         """
         Обработка невалидной формы регистрации.
         """
+        email = form.cleaned_data.get('email', 'unknown')
         logger.warning(
-            f"Registration form validation failed for email: "
-            f"{form.cleaned_data.get('email')}. Errors: {form.errors}"
+            "Registration form validation failed for email %s. Errors: %s", 
+            email, form.errors
         )
         messages.error(
             self.request, 
@@ -95,18 +100,22 @@ class EmailVerificationCodeView(FormView):
         """
         Добавляем email пользователя в контекст
         """
-        context = super().get_context_data(**kwargs)
-        context['user_email'] = self.request.session.get('user_email')
-        return context
+        try:
+            context = super().get_context_data(**kwargs)
+            context['user_email'] = self.request.session.get('user_email')
+            return context
+        except Exception as e:
+            logger.error("Error preparing email verification context: %s", str(e), exc_info=True)
+            return super().get_context_data(**kwargs)
     
     def form_valid(self, form):
         """
         Обработка валидной формы с кодом подтверждения
         """
-        user_id = self.request.session.get('user_id_for_verification')
-        verification_code = form.cleaned_data['verification_code']
-        
         try:
+            user_id = self.request.session.get('user_id_for_verification')
+            verification_code = form.cleaned_data['verification_code']
+            
             user = User.objects.get(id=user_id)
             
             if user.verify_email_with_code(verification_code):
@@ -120,7 +129,7 @@ class EmailVerificationCodeView(FormView):
                     self.request,
                     _('Email успешно подтвержден! Добро пожаловать!')
                 )
-                logger.info(f"Email verified for user: {user.email}")
+                logger.info("Email verified successfully for user: %s", user.email)
                 
                 return redirect(self.success_url)
             else:
@@ -131,17 +140,25 @@ class EmailVerificationCodeView(FormView):
                 return self.form_invalid(form)
                 
         except User.DoesNotExist:
+            logger.error("User not found during email verification. User ID: %s", user_id)
             messages.error(self.request, _('Пользователь не найден.'))
+            return self.form_invalid(form)
+        except Exception as e:
+            logger.error("Error during email verification: %s", str(e), exc_info=True)
+            messages.error(self.request, _('Ошибка при подтверждении email.'))
             return self.form_invalid(form)
     
     def _clear_verification_session(self):
         """
         Очищает данные верификации из сессии
         """
-        if 'user_id_for_verification' in self.request.session:
-            del self.request.session['user_id_for_verification']
-        if 'user_email' in self.request.session:
-            del self.request.session['user_email']
+        try:
+            if 'user_id_for_verification' in self.request.session:
+                del self.request.session['user_id_for_verification']
+            if 'user_email' in self.request.session:
+                del self.request.session['user_email']
+        except Exception as e:
+            logger.error("Error clearing verification session: %s", str(e))
 
 
 class ResendVerificationCodeView(View):
@@ -150,13 +167,13 @@ class ResendVerificationCodeView(View):
     """
     
     def post(self, request):
-        user_id = request.session.get('user_id_for_verification')
-        
-        if not user_id:
-            messages.error(request, _('Сессия истекла. Пожалуйста, зарегистрируйтесь снова.'))
-            return redirect('users:register')
-        
         try:
+            user_id = request.session.get('user_id_for_verification')
+            
+            if not user_id:
+                messages.error(request, _('Сессия истекла. Пожалуйста, зарегистрируйтесь снова.'))
+                return redirect('users:register')
+            
             user = User.objects.get(id=user_id)
             new_code = user.generate_verification_code()
             
@@ -171,17 +188,24 @@ class ResendVerificationCodeView(View):
                     request,
                     _('Новый код подтверждения отправлен на ваш email.')
                 )
+                logger.info("Verification code resent for user: %s", user.email)
             else:
                 messages.error(
                     request,
                     _('Не удалось отправить код подтверждения. Попробуйте позже.')
                 )
+                logger.error("Failed to resend verification code for user: %s", user.email)
             
             return redirect('users:verify_email_code')
             
         except User.DoesNotExist:
+            logger.error("User not found during code resend. User ID: %s", user_id)
             messages.error(request, _('Пользователь не найден.'))
             return redirect('users:register')
+        except Exception as e:
+            logger.error("Error resending verification code: %s", str(e), exc_info=True)
+            messages.error(request, _('Ошибка при отправке кода подтверждения.'))
+            return redirect('users:verify_email_code')
 
 
 class CustomLoginView(LoginView):
@@ -195,13 +219,18 @@ class CustomLoginView(LoginView):
     
     def form_valid(self, form):
         """Добавляем сообщение об успешном входе"""
-        user = form.get_user()
-        if user.email_verified:
-            messages.success(self.request, _('Успешный вход в систему!'))
-            return super().form_valid(form)
-        else:
-            # Этот случай должен быть обработан формой, но на всякий случай
-            messages.error(self.request, _('Пожалуйста, подтвердите ваш email перед входом.'))
+        try:
+            user = form.get_user()
+            if user.email_verified:
+                messages.success(self.request, _('Успешный вход в систему!'))
+                logger.info("User logged in successfully: %s", user.email)
+                return super().form_valid(form)
+            else:
+                messages.error(self.request, _('Пожалуйста, подтвердите ваш email перед входом.'))
+                return self.form_invalid(form)
+        except Exception as e:
+            logger.error("Error during user login: %s", str(e), exc_info=True)
+            messages.error(self.request, _('Ошибка при входе в систему.'))
             return self.form_invalid(form)
 
 
@@ -214,11 +243,16 @@ class CustomPasswordResetView(PasswordResetView):
     success_url = reverse_lazy('users:password_reset_done')
     
     def form_valid(self, form):
-        messages.info(
-            self.request,
-            _('Если аккаунт с таким email существует, вы получите инструкции по сбросу пароля.')
-        )
-        return super().form_valid(form)
+        try:
+            messages.info(
+                self.request,
+                _('Если аккаунт с таким email существует, вы получите инструкции по сбросу пароля.')
+            )
+            return super().form_valid(form)
+        except Exception as e:
+            logger.error("Error during password reset request: %s", str(e), exc_info=True)
+            messages.error(self.request, _('Ошибка при запросе сброса пароля.'))
+            return self.form_invalid(form)
 
 
 class CustomPasswordResetConfirmView(PasswordResetConfirmView):
@@ -229,8 +263,14 @@ class CustomPasswordResetConfirmView(PasswordResetConfirmView):
     success_url = reverse_lazy('users:password_reset_complete')
     
     def form_valid(self, form):
-        messages.success(self.request, _('Ваш пароль был успешно сброшен!'))
-        return super().form_valid(form)
+        try:
+            messages.success(self.request, _('Ваш пароль был успешно сброшен!'))
+            logger.info("Password reset successfully for user")
+            return super().form_valid(form)
+        except Exception as e:
+            logger.error("Error during password reset confirmation: %s", str(e), exc_info=True)
+            messages.error(self.request, _('Ошибка при сбросе пароля.'))
+            return self.form_invalid(form)
 
 
 class CustomPasswordResetCompleteView(PasswordResetCompleteView):
@@ -242,51 +282,71 @@ class CustomPasswordResetCompleteView(PasswordResetCompleteView):
 
 @login_required
 def edit_profile(request):
-    if request.method == 'POST':
-        # instance=request.user и instance=request.user.profile заполняют форму текущими данными
-        user_form = UserEditForm(request.POST, instance=request.user)
-        profile_form = ProfileEditForm(request.POST, request.FILES, instance=request.user.profile) # request.FILES важен для загрузки изображений!
+    try:
+        if request.method == 'POST':
+            user_form = UserEditForm(request.POST, instance=request.user)
+            profile_form = ProfileEditForm(request.POST, request.FILES, instance=request.user.profile)
 
-        if user_form.is_valid() and profile_form.is_valid():
-            user_form.save()
-            profile_form.save()
-            messages.success(request, 'Ваш профиль был успешно обновлен!')
-            return redirect('users:edit_profile') # Перенаправляем обратно на страницу профиля
+            if user_form.is_valid() and profile_form.is_valid():
+                user_form.save()
+                profile_form.save()
+                messages.success(request, 'Ваш профиль был успешно обновлен!')
+                logger.info("Profile updated successfully for user: %s", request.user.email)
+                return redirect('users:edit_profile')
+            else:
+                messages.error(request, 'Пожалуйста, исправьте ошибки в форме.')
+                logger.warning("Profile update form validation failed for user %s. Errors: %s", 
+                             request.user.email, {
+                                 'user_form_errors': user_form.errors,
+                                 'profile_form_errors': profile_form.errors
+                             })
+
         else:
-            messages.error(request, 'Пожалуйста, исправьте ошибки в форме.')
+            user_form = UserEditForm(instance=request.user)
+            profile_form = ProfileEditForm(instance=request.user.profile)
 
-    else:
-        user_form = UserEditForm(instance=request.user)
-        profile_form = ProfileEditForm(instance=request.user.profile)
-
-    context = {
-        'user_form': user_form,
-        'profile_form': profile_form,
-    }
-    return render(request, 'users/edit_profile.html', context)
+        context = {
+            'user_form': user_form,
+            'profile_form': profile_form,
+        }
+        return render(request, 'users/edit_profile.html', context)
+        
+    except Exception as e:
+        logger.error("Error loading edit profile for user %s: %s", 
+                    request.user.id, str(e), exc_info=True)
+        messages.error(request, 'Ошибка при загрузке страницы редактирования профиля.')
+        return redirect('products:catalog')
 
 
 @login_required
 def delete_account(request):
-    if request.method == 'POST':
-        form = AccountDeleteForm(request.POST, user=request.user)
-        if form.is_valid():
-            # Сохраняем ссылку на пользователя до выхода
-            user_to_delete = request.user
-            user_email = user_to_delete.email
-            
-            # Выходим пользователя
-            logout(request)
-            
-            # Удаляем аккаунт (используем сохраненную ссылку)
-            user_to_delete.delete()
-            
-            messages.success(
-                request, 
-                f'Аккаунт {user_email} был успешно удален. Жаль, что вы уходите!'
-            )
-            return redirect('home')
-    else:
-        form = AccountDeleteForm(user=request.user)
+    try:
+        if request.method == 'POST':
+            form = AccountDeleteForm(request.POST, user=request.user)
+            if form.is_valid():
+                # Сохраняем ссылку на пользователя до выхода
+                user_to_delete = request.user
+                user_email = user_to_delete.email
+                
+                # Выходим пользователя
+                logout(request)
+                
+                # Удаляем аккаунт (используем сохраненную ссылку)
+                user_to_delete.delete()
+                
+                messages.success(
+                    request, 
+                    f'Аккаунт {user_email} был успешно удален. Жаль, что вы уходите!'
+                )
+                logger.info("Account deleted successfully: %s", user_email)
+                return redirect('home')
+        else:
+            form = AccountDeleteForm(user=request.user)
 
-    return render(request, 'users/delete_account.html', {'form': form})
+        return render(request, 'users/delete_account.html', {'form': form})
+        
+    except Exception as e:
+        logger.error("Error during account deletion for user %s: %s", 
+                    request.user.id, str(e), exc_info=True)
+        messages.error(request, 'Ошибка при удалении аккаунта.')
+        return redirect('users:edit_profile')

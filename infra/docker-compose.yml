@@ -29,12 +29,14 @@ services:
       - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
     networks:
       - backend
 
   redis:
     image: redis:7
     container_name: redis
+    restart: unless-stopped
     networks:
       - backend
 

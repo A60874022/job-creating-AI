@@ -10,7 +10,7 @@
             <!-- Заголовок -->
             <div class="text-center mb-5">
                 <h1 class="fw-bold mb-3">👤 Редактирование профиля</h1>
-                <p class="text-muted">Обновите информацию о себе и настройте аккаунт</p>
+                <p class="text-muted">Обновите информацию о себе и настройте аккаунт мастера</p>
             </div>
 
             <!-- Навигационные вкладки -->
@@ -75,6 +75,11 @@
                                             {% else %}
                                             <p class="text-muted mb-3">📍 Город не указан</p>
                                             {% endif %}
+
+                                            <!-- Бейдж мастера -->
+                                            <div class="mb-3">
+                                                <span class="badge bg-success fs-6">🎨 Мастер</span>
+                                            </div>
 
                                             <!-- Загрузка аватара с кастомным отображением -->
                                             <div class="mb-3">
@@ -219,27 +224,17 @@
                     <div class="card shadow-sm border-0">
                         <div class="card-body p-4 text-center">
                             <div class="mb-4" style="font-size: 4rem;">🎁</div>
-                            <h4 class="fw-bold mb-3">Мои товары</h4>
-                            <p class="text-muted mb-4">Управляйте вашими handmade-товарами в специальном разделе</p>
+                            <h4 class="fw-bold mb-3">Управление товарами</h4>
+                            <p class="text-muted mb-4">Добавляйте и редактируйте свои handmade-товары</p>
 
-                            {% if user.is_master %}
                             <div class="d-flex justify-content-center gap-3 flex-wrap">
                                 <a href="{% url 'products:my_products' %}" class="btn btn-primary btn-lg px-4">
-                                    🛍️ Перейти к моим товарам
+                                    🛍️ Мои товары
                                 </a>
                                 <a href="{% url 'products:product_add' %}" class="btn btn-outline-primary btn-lg px-4">
                                     ➕ Добавить новый товар
                                 </a>
                             </div>
-                            {% else %}
-                            <div class="alert alert-info">
-                                <h6>🎨 Станьте мастером!</h6>
-                                <p class="mb-2">Чтобы добавлять товары, нужно зарегистрироваться как мастер.</p>
-                                <a href="{% url 'users:edit_profile' %}" class="btn btn-primary btn-sm">
-                                    Изменить тип аккаунта
-                                </a>
-                            </div>
-                            {% endif %}
                         </div>
                     </div>
                 </div>

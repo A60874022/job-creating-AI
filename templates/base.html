@@ -100,6 +100,13 @@
             color: #8B4513;
             margin-bottom: 1rem;
         }
+
+        /* Бейдж мастера в навигации */
+        .master-badge {
+            font-size: 0.7rem;
+            background-color: #198754;
+            margin-left: 5px;
+        }
     </style>
 </head>
 
@@ -117,47 +124,35 @@
 
                 <div class="navbar-nav ms-auto">
                     {% if user.is_authenticated %}
-                    <!-- Меню для авторизованных пользователей -->
+                    <!-- Меню для авторизованных пользователей (все мастера) -->
                     <div class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
                             aria-expanded="false">
                             👋 Привет, {{ user.email }}
+                            <span class="master-badge badge bg-success">мастер</span>
                             {% if user.unread_messages_count %}
                             <span class="unread-badge badge bg-danger">{{ user.unread_messages_count }}</span>
                             {% endif %}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            {% if user.is_master %}
-                            <!-- Меню для МАСТЕРА -->
+                            <!-- Единое меню для всех пользователей (мастеров) -->
                             <li><a class="dropdown-item" href="{% url 'products:my_products' %}">🛍️ Мои товары</a></li>
                             <li><a class="dropdown-item" href="{% url 'products:product_add' %}">🎨 Добавить товар</a>
                             </li>
-                            <li><a class="dropdown-item" href="{% url 'orders:master_orders' %}">📦 Заказы на мои
-                                    товары</a></li>
-                            <!-- ДОБАВЛЕН ЧАТ ДЛЯ МАСТЕРА -->
-                            <li>
-                                <a class="dropdown-item" href="{% url 'chat:dialogue_list' %}">
-                                    💬 Диалоги с покупателями
-                                    {% if user.unread_messages_count %}
-                                    <span class="badge bg-danger float-end">{{ user.unread_messages_count }}</span>
-                                    {% endif %}
-                                </a>
+                            <li><a class="dropdown-item" href="{% url 'orders:sale_orders' %}">💰 Мои продажи</a></li>
+                            <li><a class="dropdown-item" href="{% url 'orders:purchase_orders' %}">🛍️ Мои покупки</a>
                             </li>
-                            {% else %}
-                            <!-- Меню для ПОКУПАТЕЛЯ -->
-                            <li><a class="dropdown-item" href="{% url 'orders:customer_orders' %}">📦 Мои заказы</a>
-                            </li>
-                            <li><a class="dropdown-item" href="{% url 'products:customer_profile' %}?tab=favorites">❤️
+                            <li><a class="dropdown-item" href="{% url 'orders:cart_view' %}">🛒 Корзина</a></li>
+                            <li><a class="dropdown-item" href="{% url 'products:profile' %}?tab=favorites">❤️
                                     Избранное</a></li>
                             <li>
                                 <a class="dropdown-item" href="{% url 'chat:dialogue_list' %}">
-                                    💬 Диалоги с мастерами
+                                    💬 Мои диалоги
                                     {% if user.unread_messages_count %}
                                     <span class="badge bg-danger float-end">{{ user.unread_messages_count }}</span>
                                     {% endif %}
                                 </a>
                             </li>
-                            {% endif %}
                             <li><a class="dropdown-item" href="{% url 'users:edit_profile' %}">👤 Мой профиль</a></li>
                             <li>
                                 <hr class="dropdown-divider">

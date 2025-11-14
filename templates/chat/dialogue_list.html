@@ -10,20 +10,8 @@
             <!-- Заголовок и кнопки управления -->
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h1 class="fw-bold mb-2">
-                        {% if user.is_master %}
-                        💬 Диалоги с покупателями
-                        {% else %}
-                        💬 Диалоги с мастерами
-                        {% endif %}
-                    </h1>
-                    <p class="text-muted">
-                        {% if user.is_master %}
-                        Общайтесь с вашими покупателями
-                        {% else %}
-                        Ваши переговоры с мастерами
-                        {% endif %}
-                    </p>
+                    <h1 class="fw-bold mb-2">💬 Мои диалоги</h1>
+                    <p class="text-muted">Общайтесь с другими мастерами и покупателями</p>
                 </div>
                 <div class="d-flex gap-2">
                     {% if dialogues %}
@@ -39,29 +27,58 @@
                 </div>
             </div>
 
+            <!-- Уведомление о непрочитанных сообщениях -->
+            {% with total_unread=0 %}
+            {% for dialogue in dialogues %}
+            {% with total_unread=total_unread|add:dialogue.unread_count %}
+            {% endwith %}
+            {% endfor %}
+
+            {% if total_unread > 0 %}
+            <div class="alert alert-info alert-dismissible fade show mb-4" role="alert">
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <span class="fs-4">💬</span>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h6 class="alert-heading fw-bold mb-1">У вас есть непрочитанные сообщения!</h6>
+                        <p class="mb-0">Всего непрочитанных сообщений: <strong>{{ total_unread }}</strong></p>
+                    </div>
+                    <div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endwith %}
+
             <!-- Список диалогов -->
             {% if dialogues %}
             <div class="row">
                 {% for dialogue in dialogues %}
                 <div class="col-12 mb-3">
-                    <div class="card border-0 shadow-sm hover-shadow">
+                    <div
+                        class="card border-0 shadow-sm hover-shadow {% if dialogue.unread_count > 0 %}border-primary border-2{% endif %}">
                         <div class="card-body">
                             <div class="row align-items-center">
                                 <!-- Аватар и информация -->
                                 <div class="col-md-2 col-3">
                                     <div class="position-relative">
+                                        {% if dialogue.other_user.profile.avatar %}
+                                        <img src="{{ dialogue.other_user.profile.avatar.url }}" class="rounded-circle"
+                                            alt="{{ dialogue.other_user.email }}"
+                                            style="width: 60px; height: 60px; object-fit: cover;">
+                                        {% else %}
                                         <div class="bg-brown text-white rounded-circle d-flex align-items-center justify-content-center"
                                             style="width: 60px; height: 60px; font-size: 1.5rem;">
-                                            {% if user.is_master %}
-                                            👤
-                                            {% else %}
                                             🎨
-                                            {% endif %}
                                         </div>
-                                        {% if dialogue.unread_messages_count > 0 %}
+                                        {% endif %}
+                                        {% if dialogue.unread_count > 0 %}
                                         <span
                                             class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                                            {{ dialogue.unread_messages_count }}
+                                            {{ dialogue.unread_count }}
+                                            <span class="visually-hidden">непрочитанных сообщений</span>
                                         </span>
                                         {% endif %}
                                     </div>
@@ -70,10 +87,9 @@
                                 <!-- Детали диалога -->
                                 <div class="col-md-6 col-9">
                                     <h5 class="card-title fw-bold mb-1">
-                                        {% if user.is_master %}
-                                        {{ dialogue.customer.get_full_name|default:dialogue.customer.email }}
-                                        {% else %}
-                                        {{ dialogue.master.get_full_name|default:dialogue.master.email }}
+                                        {{ dialogue.other_user.email }}
+                                        {% if dialogue.other_user.get_full_name %}
+                                        <small class="text-muted">({{ dialogue.other_user.get_full_name }})</small>
                                         {% endif %}
                                     </h5>
 
@@ -84,30 +100,28 @@
                                     {% endif %}
 
                                     <!-- Последнее сообщение -->
-                                    <p class="mb-1 text-dark">
-                                        {% with last_message=dialogue.messages.last %}
-                                        {% if last_message %}
+                                    <p
+                                        class="mb-1 {% if dialogue.unread_count > 0 %}text-dark fw-bold{% else %}text-dark{% endif %}">
+                                        {% if dialogue.last_message %}
                                         <strong>
-                                            {% if last_message.sender == user %}
+                                            {% if dialogue.last_message.sender == user %}
                                             Вы:
                                             {% else %}
-                                            {% if user.is_master %}
-                                            Покупатель:
-                                            {% else %}
-                                            Мастер:
-                                            {% endif %}
+                                            Собеседник:
                                             {% endif %}
                                         </strong>
-                                        {{ last_message.text|truncatewords:10 }}
+                                        {{ dialogue.last_message.text|truncatewords:10 }}
                                         {% else %}
                                         <span class="text-muted">Диалог начат</span>
                                         {% endif %}
-                                        {% endwith %}
                                     </p>
 
                                     <small class="text-muted">
                                         📅 {{ dialogue.updated_at|date:"d.m.Y" }}
                                         • 🕒 {{ dialogue.updated_at|date:"H:i" }}
+                                        {% if dialogue.unread_count > 0 %}
+                                        • <span class="text-danger">✉️ {{ dialogue.unread_count }} непрочитанных</span>
+                                        {% endif %}
                                     </small>
                                 </div>
 
@@ -115,8 +129,12 @@
                                 <div class="col-md-4 col-12 text-md-end mt-md-0 mt-3">
                                     <div class="d-flex gap-2 flex-column">
                                         <a href="{% url 'chat:dialogue_detail' dialogue.id %}"
-                                            class="btn btn-primary btn-sm">
+                                            class="btn {% if dialogue.unread_count > 0 %}btn-warning{% else %}btn-primary{% endif %} btn-sm">
+                                            {% if dialogue.unread_count > 0 %}
+                                            📨 Открыть ({{ dialogue.unread_count }})
+                                            {% else %}
                                             📨 Открыть чат
+                                            {% endif %}
                                         </a>
                                         <!-- Кнопка удаления диалога -->
                                         <button type="button" class="btn btn-outline-danger btn-sm"
@@ -150,11 +168,7 @@
                                 <div class="card border-0 bg-light mb-3">
                                     <div class="card-body py-3">
                                         <h6 class="fw-bold mb-1">
-                                            {% if user.is_master %}
-                                            С покупателем: {{ dialogue.customer.email }}
-                                            {% else %}
-                                            С мастером: {{ dialogue.master.email }}
-                                            {% endif %}
+                                            С собеседником: {{ dialogue.other_user.email }}
                                         </h6>
                                         {% if dialogue.product %}
                                         <p class="text-muted small mb-2">
@@ -163,8 +177,13 @@
                                         {% endif %}
                                         <div class="d-flex justify-content-between align-items-center">
                                             <span class="text-muted small">
-                                                Сообщений: {{ dialogue.messages.count }}
+                                                Сообщений: {{ dialogue.messages_count }}
                                             </span>
+                                            {% if dialogue.unread_count > 0 %}
+                                            <span class="text-danger small">
+                                                Непрочитанных: {{ dialogue.unread_count }}
+                                            </span>
+                                            {% endif %}
                                             <span class="text-muted small">
                                                 Создан: {{ dialogue.created_at|date:"d.m.Y" }}
                                             </span>
@@ -199,15 +218,16 @@
                 <div class="mb-4" style="font-size: 5rem;">💬</div>
                 <h3 class="fw-bold mb-3">У вас пока нет диалогов</h3>
                 <p class="text-muted mb-4">
-                    {% if user.is_master %}
-                    Ваши покупатели смогут написать вам через карточки товаров
-                    {% else %}
-                    Начните общение с мастером через карточку товара
-                    {% endif %}
+                    Начните общение с другими мастерами через карточки товаров
                 </p>
-                <a href="{% url 'products:catalog' %}" class="btn btn-primary btn-lg px-4">
-                    🛍️ Перейти в каталог
-                </a>
+                <div class="d-flex justify-content-center gap-3 flex-wrap">
+                    <a href="{% url 'products:catalog' %}" class="btn btn-primary btn-lg px-4">
+                        🛍️ Перейти в каталог
+                    </a>
+                    <a href="{% url 'products:my_products' %}" class="btn btn-outline-primary btn-lg px-4">
+                        🎨 Мои товары
+                    </a>
+                </div>
             </div>
             {% endif %}
         </div>
@@ -286,6 +306,20 @@
         border-color: #654321;
     }
 
+    .btn-warning {
+        background-color: #ffc107;
+        border-color: #ffc107;
+        color: #000;
+        border-radius: 10px;
+        font-weight: 600;
+    }
+
+    .btn-warning:hover {
+        background-color: #e0a800;
+        border-color: #e0a800;
+        color: #000;
+    }
+
     .btn-outline-danger {
         border-radius: 8px;
     }
@@ -298,6 +332,10 @@
     .modal-header {
         background-color: #f8f9fa;
         border-radius: 15px 15px 0 0;
+    }
+
+    .alert-info {
+        border-left: 4px solid #0dcaf0;
     }
 </style>
 
@@ -313,6 +351,23 @@
                 }
             });
         });
+
+        // Автоматическое обновление страницы каждые 30 секунд для проверки новых сообщений
+        setInterval(function () {
+            fetch(window.location.href)
+                .then(response => response.text())
+                .then(html => {
+                    const parser = new DOMParser();
+                    const newDocument = parser.parseFromString(html, 'text/html');
+                    const newContent = newDocument.querySelector('.row').innerHTML;
+
+                    // Обновляем только если есть изменения
+                    if (document.querySelector('.row').innerHTML !== newContent) {
+                        document.querySelector('.row').innerHTML = newContent;
+                    }
+                })
+                .catch(error => console.error('Error updating dialogues:', error));
+        }, 30000);
     });
 </script>
 {% endblock %}

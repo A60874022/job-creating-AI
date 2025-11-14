@@ -1,4 +1,3 @@
-# chat/consumers.py
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
@@ -30,6 +29,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
             await self.accept()
+            
+            # Помечаем сообщения как прочитанные при подключении
+            await self.mark_messages_as_read()
             
         except KeyError as e:
             print(f"KeyError in connect: {e}")
@@ -63,6 +65,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
             message_obj = await self.save_message(message_text, sender_id)
 
             if message_obj:
+                # Получаем собеседника для определения, кому показывать уведомления
+                interlocutor = await self.get_interlocutor()
+                
                 # Отправляем сообщение всем в группе
                 await self.channel_layer.group_send(
                     self.room_group_name,
@@ -73,6 +78,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                         'sender_email': self.user.email,
                         'timestamp': message_obj.created_at.isoformat(),
                         'message_id': message_obj.id,
+                        'interlocutor_id': interlocutor.id if interlocutor else None,
                     }
                 )
             else:
@@ -93,6 +99,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'sender_email': event['sender_email'],
                 'timestamp': event['timestamp'],
                 'message_id': event['message_id'],
+                'is_own_message': event['sender_id'] == self.user.id,
             }))
         except Exception as e:
             print(f"Error in chat_message: {e}")
@@ -102,7 +109,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         """Проверяет, имеет ли пользователь доступ к диалогу"""
         try:
             dialogue = Dialogue.objects.get(id=self.dialogue_id)
-            return self.user in [dialogue.customer, dialogue.master]
+            # ОБНОВЛЕНО: Проверка для универсальных пользователей
+            return self.user in [dialogue.user1, dialogue.user2]
         except Dialogue.DoesNotExist:
             return False
 
@@ -125,4 +133,26 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return message
         except Exception as e:
             print(f"Error saving message: {e}")
+            return None
+
+    @database_sync_to_async
+    def mark_messages_as_read(self):
+        """Помечает все сообщения собеседника как прочитанные"""
+        try:
+            dialogue = Dialogue.objects.get(id=self.dialogue_id)
+            # Помечаем сообщения собеседника как прочитанные
+            Message.objects.filter(
+                dialogue=dialogue,
+                is_read=False
+            ).exclude(sender=self.user).update(is_read=True)
+        except Exception as e:
+            print(f"Error marking messages as read: {e}")
+
+    @database_sync_to_async
+    def get_interlocutor(self):
+        """Возвращает собеседника текущего пользователя"""
+        try:
+            dialogue = Dialogue.objects.get(id=self.dialogue_id)
+            return dialogue.get_other_user(self.user)
+        except Dialogue.DoesNotExist:
             return None

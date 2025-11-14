@@ -30,11 +30,11 @@
                             <h6 class="fw-bold mb-1">{{ item.product.title }}</h6>
                             <p class="text-muted small mb-1">{{ item.product.description|truncatewords:15 }}</p>
                             <small class="text-muted">
-                                Мастер:
+                                🎨 Мастер:
                                 {% if item.product.master.get_full_name %}
                                 {{ item.product.master.get_full_name }}
                                 {% else %}
-                                {{ item.product.master.username }}
+                                {{ item.product.master.email }}
                                 {% endif %}
                             </small>
                         </div>

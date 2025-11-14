@@ -1,9 +1,8 @@
 from django.urls import path
 from . import views
-from .views import customer_profile, add_to_favorites, remove_from_favorites, remove_from_favorites_by_product
+from .views import profile, add_to_favorites, remove_from_favorites, remove_from_favorites_by_product
 
 app_name = 'products'
-
 
 urlpatterns = [
     path('', views.ProductCatalogView.as_view(), name='catalog'),
@@ -13,8 +12,8 @@ urlpatterns = [
     path('<int:pk>/', views.ProductDetailView.as_view(), name='product_detail'),
     path('<int:pk>/delete/', views.ProductDeleteView.as_view(), name='product_delete'),
     
-    # ЛК покупателя
-    path('customer/profile/', customer_profile, name='customer_profile'),
+    # УНИВЕРСАЛЬНЫЙ ПРОФИЛЬ МАСТЕРА (заменяет customer_profile)
+    path('profile/', profile, name='profile'),
     
     # Избранное
     path('favorites/add/<int:product_id>/', add_to_favorites, name='add_to_favorites'),

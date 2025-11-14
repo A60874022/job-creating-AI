@@ -11,9 +11,14 @@
             <h1 class="fw-bold mb-2">🛍️ Мои товары</h1>
             <p class="text-muted">Управляйте вашими handmade-товарами</p>
         </div>
-        <a href="{% url 'products:product_add' %}" class="btn btn-primary btn-lg px-4">
-            ➕ Добавить товар
-        </a>
+        <div>
+            <a href="{% url 'products:profile' %}?tab=my_products" class="btn btn-outline-primary me-2">
+                📊 Мой профиль
+            </a>
+            <a href="{% url 'products:product_add' %}" class="btn btn-primary btn-lg px-4">
+                ➕ Добавить товар
+            </a>
+        </div>
     </div>
 
     {% if products %}
@@ -58,12 +63,11 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <span class="h5 mb-0 text-brown fw-bold">{{ product.price }} ₽</span>
                             {% if product.category %}
-                            <!-- Замечание 17: Применяем фильтр title для категорий -->
                             <span class="badge bg-light text-brown border">{{ product.category.name|title }}</span>
                             {% endif %}
                         </div>
 
-                        <!-- Обновленный блок кнопок с удалением -->
+                        <!-- Обновленный блок кнопок -->
                         <div class="d-flex gap-2 flex-wrap">
                             <!-- Кнопка редактирования -->
                             <a href="{% url 'products:product_edit' product.pk %}"
@@ -118,7 +122,6 @@
                                 <div class="d-flex justify-content-between align-items-center">
                                     <span class="fw-bold text-brown">{{ product.price }} ₽</span>
                                     {% if product.category %}
-                                    <!-- Замечание 17: Применяем фильтр title для категорий -->
                                     <span class="badge bg-brown">{{ product.category.name|title }}</span>
                                     {% endif %}
                                 </div>
@@ -151,9 +154,14 @@
         <div class="mb-4" style="font-size: 4rem;">🎁</div>
         <h3 class="fw-bold mb-3">У вас пока нет товаров</h3>
         <p class="text-muted mb-4">Добавьте свой первый handmade-товар и начните продавать</p>
-        <a href="{% url 'products:product_add' %}" class="btn btn-primary btn-lg px-4">
-            🎨 Добавить первый товар
-        </a>
+        <div class="d-flex justify-content-center gap-3">
+            <a href="{% url 'products:product_add' %}" class="btn btn-primary btn-lg px-4">
+                🎨 Добавить первый товар
+            </a>
+            <a href="{% url 'products:catalog' %}" class="btn btn-outline-primary btn-lg px-4">
+                🛍️ Посмотреть каталог
+            </a>
+        </div>
     </div>
     {% endif %}
 </div>
