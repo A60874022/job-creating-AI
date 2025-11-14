@@ -73,6 +73,7 @@ ASGI_APPLICATION = "ad_service.asgi.application"
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
 
+
 # Authentication
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
