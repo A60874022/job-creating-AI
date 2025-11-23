@@ -40,10 +40,15 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <form method="get" class="d-flex">
-                                <input type="text" name="q" class="form-control me-2" placeholder="Поиск товаров..."
-                                    value="{{ request.GET.q }}">
+                            <form method="get" class="d-flex position-relative" id="search-form">
+                                <input type="text" name="q" class="form-control me-2"
+                                    placeholder="Начните вводить название товара..." value="{{ request.GET.q }}"
+                                    autocomplete="off" id="search-input"
+                                    data-autocomplete-url="{% url 'products:autocomplete' %}">
                                 <button type="submit" class="btn btn-outline-brown">🔍</button>
+
+                                <!-- Выпадающий список с автодополнением -->
+                                <div id="autocomplete-results" class="autocomplete-dropdown"></div>
                             </form>
                         </div>
                         <div class="col-md-6">
@@ -242,5 +247,349 @@
     .product-card:hover {
         transform: translateY(-5px);
     }
+
+    /* Стили для автодополнения */
+    .autocomplete-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 70px;
+        background: white;
+        border: 1px solid #ddd;
+        border-top: none;
+        border-radius: 0 0 8px 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        max-height: 350px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+    }
+
+    .autocomplete-item {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        border-bottom: 1px solid #f0f0f0;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .autocomplete-item:hover,
+    .autocomplete-item.active {
+        background-color: #f8f9fa;
+        text-decoration: none;
+        color: inherit;
+        transform: translateX(2px);
+    }
+
+    .autocomplete-item:last-child {
+        border-bottom: none;
+    }
+
+    .autocomplete-image {
+        width: 45px;
+        height: 45px;
+        object-fit: cover;
+        border-radius: 6px;
+        margin-right: 12px;
+        border: 1px solid #e9ecef;
+    }
+
+    .autocomplete-image-placeholder {
+        width: 45px;
+        height: 45px;
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 6px;
+        margin-right: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3em;
+        border: 1px solid #e9ecef;
+    }
+
+    .autocomplete-info {
+        flex: 1;
+    }
+
+    .autocomplete-title {
+        font-weight: 600;
+        margin-bottom: 3px;
+        color: #333;
+        font-size: 0.95em;
+    }
+
+    .autocomplete-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .autocomplete-category {
+        font-size: 0.8em;
+        color: #6c757d;
+        background: #f8f9fa;
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    .autocomplete-price {
+        font-weight: 700;
+        color: #8B4513;
+        font-size: 0.9em;
+    }
+
+    .autocomplete-loading,
+    .autocomplete-empty,
+    .autocomplete-error {
+        padding: 20px;
+        text-align: center;
+        color: #6c757d;
+        font-size: 0.95em;
+    }
+
+    .autocomplete-loading {
+        color: #8B4513;
+        font-weight: 500;
+    }
+
+    .autocomplete-error {
+        color: #dc3545;
+    }
+
+    #search-form {
+        position: relative;
+    }
+
+    /* Анимация появления */
+    .autocomplete-dropdown {
+        animation: slideDown 0.2s ease-out;
+    }
+
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
 </style>
+
+<script>
+    class ProductAutocomplete {
+        constructor(inputElement, resultsElement) {
+            this.input = inputElement;
+            this.results = resultsElement;
+            this.currentRequest = null;
+            this.debounceTimeout = null;
+
+            this.init();
+        }
+
+        init() {
+            this.input.addEventListener('input', this.handleInput.bind(this));
+            this.input.addEventListener('focus', this.showResultsIfNotEmpty.bind(this));
+            document.addEventListener('click', this.handleClickOutside.bind(this));
+
+            // Навигация с клавиатуры
+            this.input.addEventListener('keydown', this.handleKeydown.bind(this));
+        }
+
+        handleInput(event) {
+            const query = this.input.value.trim();
+
+            // Очищаем предыдущий таймер
+            if (this.debounceTimeout) {
+                clearTimeout(this.debounceTimeout);
+            }
+
+            // Дебаунс - ждем завершения ввода (300мс)
+            this.debounceTimeout = setTimeout(() => {
+                this.searchProducts(query);
+            }, 300);
+        }
+
+        async searchProducts(query) {
+            // Отменяем предыдущий запрос
+            if (this.currentRequest) {
+                this.currentRequest.abort();
+            }
+
+            if (query.length < 2) {
+                this.hideResults();
+                return;
+            }
+
+            this.showLoading();
+
+            try {
+                // Создаем новый AbortController для отмены запроса
+                const controller = new AbortController();
+                this.currentRequest = controller;
+
+                const autocompleteUrl = this.input.dataset.autocompleteUrl;
+                const response = await fetch(
+                    `${autocompleteUrl}?q=${encodeURIComponent(query)}`,
+                    {
+                        signal: controller.signal,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    this.displayResults(data.results);
+                } else {
+                    this.showError();
+                }
+
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('Autocomplete error:', error);
+                    this.showError();
+                }
+            } finally {
+                this.currentRequest = null;
+            }
+        }
+
+        displayResults(products) {
+            if (products.length === 0) {
+                this.results.innerHTML = '<div class="autocomplete-empty">😔 По вашему запросу ничего не найдено</div>';
+                this.showResults();
+                return;
+            }
+
+            const html = products.map(product => `
+            <a href="${product.url}" class="autocomplete-item" data-product-id="${product.id}">
+                ${product.image_url ?
+                    `<img src="${product.image_url}" alt="${product.title}" class="autocomplete-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` :
+                    ''
+                }
+                ${!product.image_url ?
+                    '<div class="autocomplete-image-placeholder">🎨</div>' :
+                    '<div class="autocomplete-image-placeholder" style="display:none">🎨</div>'
+                }
+                <div class="autocomplete-info">
+                    <div class="autocomplete-title">${this.escapeHtml(product.title)}</div>
+                    <div class="autocomplete-meta">
+                        <span class="autocomplete-category">${this.escapeHtml(product.category)}</span>
+                        <span class="autocomplete-price">${this.escapeHtml(product.price)} ₽</span>
+                    </div>
+                </div>
+            </a>
+        `).join('');
+
+            this.results.innerHTML = html;
+            this.showResults();
+        }
+
+        escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        showLoading() {
+            this.results.innerHTML = '<div class="autocomplete-loading">🔍 Ищем товары...</div>';
+            this.showResults();
+        }
+
+        showError() {
+            this.results.innerHTML = '<div class="autocomplete-error">⚠️ Произошла ошибка при поиске</div>';
+            this.showResults();
+        }
+
+        showResults() {
+            this.results.style.display = 'block';
+        }
+
+        hideResults() {
+            this.results.style.display = 'none';
+        }
+
+        showResultsIfNotEmpty() {
+            if (this.results.innerHTML.trim() && this.input.value.trim().length >= 2) {
+                this.showResults();
+            }
+        }
+
+        handleClickOutside(event) {
+            if (!this.input.contains(event.target) && !this.results.contains(event.target)) {
+                this.hideResults();
+            }
+        }
+
+        handleKeydown(event) {
+            // Навигация стрелками только если есть результаты
+            const items = this.results.querySelectorAll('.autocomplete-item');
+            if (items.length === 0) return;
+
+            const currentActive = this.results.querySelector('.autocomplete-item.active');
+            let currentIndex = Array.from(items).indexOf(currentActive);
+
+            switch (event.key) {
+                case 'ArrowDown':
+                    event.preventDefault();
+                    currentIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % items.length;
+                    this.setActiveItem(items, currentIndex);
+                    break;
+                case 'ArrowUp':
+                    event.preventDefault();
+                    currentIndex = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
+                    this.setActiveItem(items, currentIndex);
+                    break;
+                case 'Enter':
+                    if (currentActive) {
+                        event.preventDefault();
+                        currentActive.click();
+                    }
+                    break;
+                case 'Escape':
+                    this.hideResults();
+                    break;
+            }
+        }
+
+        setActiveItem(items, index) {
+            items.forEach(item => item.classList.remove('active'));
+            if (items[index]) {
+                items[index].classList.add('active');
+                // Прокручиваем к активному элементу если нужно
+                items[index].scrollIntoView({ block: 'nearest' });
+            }
+        }
+    }
+
+    // Инициализация при загрузке страницы
+    document.addEventListener('DOMContentLoaded', function () {
+        const searchInput = document.getElementById('search-input');
+        const resultsContainer = document.getElementById('autocomplete-results');
+
+        if (searchInput && resultsContainer) {
+            new ProductAutocomplete(searchInput, resultsContainer);
+
+            // Обработка отправки формы - скрываем результаты
+            const searchForm = document.getElementById('search-form');
+            if (searchForm) {
+                searchForm.addEventListener('submit', function () {
+                    resultsContainer.style.display = 'none';
+                });
+            }
+        }
+    });
+</script>
 {% endblock %}

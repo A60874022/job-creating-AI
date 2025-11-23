@@ -6,19 +6,18 @@
 {% block content %}
 <div class="container mt-4">
     <div class="row">
-        <!-- Изображения товара с галереей -->
-        <div class="col-md-6">
+        <!-- Изображения товара с галереей - УВЕЛИЧЕННЫЙ РАЗМЕР -->
+        <div class="col-md-7">
             <div class="card border-0 shadow-sm">
                 <div class="card-body p-3">
                     {% if product.images.all %}
-                    <div id="productCarousel" class="carousel slide" data-bs-ride="carousel">
+                    <div id="productCarousel" class="carousel slide" data-bs-ride="false">
                         <div class="carousel-inner">
                             {% for image in product.images.all %}
-                            <div class="carousel-item {% if forloop.first %}active{% endif %}">
-                                <img src="{{ image.image.url }}" class="d-block w-100 rounded cursor-zoom"
-                                    alt="{{ product.title }}" style="height: 400px; object-fit: cover; cursor: pointer;"
-                                    data-bs-toggle="modal" data-bs-target="#imageModal"
-                                    onclick="openImageModal({{ forloop.counter0 }})">
+                            <div class="carousel-item {% if image.is_main %}active{% endif %}">
+                                <img src="{{ image.image.url }}" class="d-block w-100 cursor-zoom"
+                                    alt="{{ product.title }}" style="height: 500px; object-fit: cover; cursor: pointer;"
+                                    onclick="openImageModal('{{ forloop.counter0 }}')">
                             </div>
                             {% endfor %}
                         </div>
@@ -29,11 +28,11 @@
                             {% for image in product.images.all %}
                             <button type="button" data-bs-target="#productCarousel"
                                 data-bs-slide-to="{{ forloop.counter0 }}"
-                                class="{% if forloop.first %}active{% endif %}"
-                                aria-current="{% if forloop.first %}true{% endif %}"
+                                class="{% if image.is_main %}active{% endif %}"
+                                aria-current="{% if image.is_main %}true{% endif %}"
                                 aria-label="Slide {{ forloop.counter }}"
-                                onclick="openImageModal({{ forloop.counter0 }})"
-                                style="cursor: pointer; width: 10px; height: 10px; border-radius: 50%; margin: 0 5px;">
+                                onclick="openImageModal('{{ forloop.counter0 }}')"
+                                style="cursor: pointer; width: 12px; height: 12px; border-radius: 50%; margin: 0 5px;">
                             </button>
                             {% endfor %}
                         </div>
@@ -53,21 +52,23 @@
                     </div>
                     {% else %}
                     <div class="bg-light rounded d-flex align-items-center justify-content-center"
-                        style="height: 400px; cursor: pointer;" data-bs-toggle="modal" data-bs-target="#imageModal">
-                        <span class="text-muted" style="font-size: 4rem;">🎨</span>
+                        style="height: 500px; cursor: pointer;" onclick="openImageModal('0')">
+                        <span class="text-muted" style="font-size: 5rem;">🎨</span>
                     </div>
                     {% endif %}
                 </div>
             </div>
 
-            <!-- Миниатюры изображений (если есть несколько) -->
+            <!-- Миниатюры изображений (если есть несколько) - УВЕЛИЧЕННЫЕ -->
             {% if product.images.count > 1 %}
-            <div class="row mt-3">
+            <div class="row mt-4">
                 {% for image in product.images.all %}
-                <div class="col-3">
-                    <img src="{{ image.image.url }}" class="img-thumbnail cursor-zoom" alt="{{ product.title }}"
-                        style="height: 80px; width: 100%; object-fit: cover; cursor: pointer;" data-bs-toggle="modal"
-                        data-bs-target="#imageModal" onclick="openImageModal({{ forloop.counter0 }})">
+                <div class="col-3 mb-3">
+                    <img src="{{ image.image.url }}"
+                        class="img-thumbnail cursor-zoom {% if image.is_main %}active-thumbnail{% endif %}"
+                        alt="{{ product.title }}"
+                        style="height: 100px; width: 100%; object-fit: cover; cursor: pointer;"
+                        onclick="openImageModal('{{ forloop.counter0 }}')">
                 </div>
                 {% endfor %}
             </div>
@@ -75,83 +76,27 @@
         </div>
 
         <!-- Информация о товаре -->
-        <div class="col-md-6">
+        <div class="col-md-5">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     <!-- Заголовок и цена -->
-                    <div class="mb-3">
-                        <h1 class="h2 fw-bold mb-2">{{ product.title }}</h1>
+                    <div class="mb-4">
+                        <h1 class="h2 fw-bold mb-3">{{ product.title }}</h1>
                         <div class="d-flex align-items-center mb-3">
-                            <span class="h3 text-brown fw-bold">{{ product.price }} ₽</span>
+                            <span class="h2 text-brown fw-bold">{{ product.price }} ₽</span>
                             <span class="badge bg-warning ms-3 fs-6">Handmade</span>
                         </div>
                     </div>
 
-                    <!-- Информация о мастере -->
-                    <div class="mb-4 p-3 bg-light rounded">
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div class="d-flex align-items-center">
-                                {% if product.master.profile.avatar %}
-                                <img src="{{ product.master.profile.avatar.url }}" class="rounded-circle me-3"
-                                    alt="Аватар мастера" style="width: 50px; height: 50px; object-fit: cover;">
-                                {% else %}
-                                <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center me-3"
-                                    style="width: 50px; height: 50px;">
-                                    <span class="text-white">👤</span>
-                                </div>
-                                {% endif %}
-                                <div>
-                                    <h6 class="fw-bold mb-1">🎨 Мастер</h6>
-                                    <p class="text-muted mb-0">
-                                        {% if product.master.get_full_name %}
-                                        {{ product.master.get_full_name }}
-                                        {% else %}
-                                        {{ product.master.email }}
-                                        {% endif %}
-                                    </p>
-                                    {% if product.master.profile.city %}
-                                    <small class="text-muted">📍 {{ product.master.profile.city }}</small>
-                                    {% endif %}
-                                </div>
-                            </div>
-
-                            <!-- Кнопка "Обсудить товар" -->
-                            {% if user.is_authenticated and not is_own_product %}
-                            <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
-                                class="btn btn-outline-primary btn-sm"
-                                title="Начать обсуждение этого товара с мастером">
-                                💬 Обсудить товар
-                            </a>
-                            {% elif not user.is_authenticated %}
-                            <a href="{% url 'users:login' %}?next={{ request.path }}"
-                                class="btn btn-outline-primary btn-sm" title="Войдите, чтобы обсудить товар с мастером">
-                                💬 Обсудить товар
-                            </a>
-                            {% endif %}
-                        </div>
-
-                        <!-- Рейтинг мастера (если есть) -->
-                        {% if product.master.profile.rating %}
-                        <div class="mt-2">
-                            <small class="text-warning">
-                                {% with rating=product.master.profile.rating %}
-                                {% for i in "12345" %}
-                                {% if forloop.counter <= rating %}⭐{% else %}☆{% endif %}{% endfor %} {% endwith %}
-                                    <span class="text-muted ms-1">({{ product.master.profile.rating }})</span>
-                            </small>
-                        </div>
-                        {% endif %}
-                    </div>
-
                     <!-- Категория -->
-                    <div class="mb-3">
-                        <span class="badge bg-brown fs-6">{{ product.category.name }}</span>
+                    <div class="mb-4">
+                        <span class="badge bg-brown fs-6 p-2">{{ product.category.name }}</span>
                     </div>
 
                     <!-- Описание -->
                     <div class="mb-4">
-                        <h5 class="fw-bold mb-2">Описание товара</h5>
-                        <p class="text-muted" style="line-height: 1.6;">{{ product.description }}</p>
+                        <h5 class="fw-bold mb-3">📖 Описание товара</h5>
+                        <p class="text-muted" style="line-height: 1.6; font-size: 1.1rem;">{{ product.description }}</p>
                     </div>
 
                     <!-- Детали товара -->
@@ -176,55 +121,64 @@
                     </div>
 
                     <!-- Кнопки действий -->
-                    <div class="d-grid gap-2 d-md-flex mb-4">
-                        <!-- Исправленная кнопка добавления в корзину -->
+                    <div class="d-grid gap-3 mb-4">
+                        <!-- Кнопка добавления в корзину -->
                         {% if user.is_authenticated %}
                         {% if not is_own_product %}
-                        <form method="post" action="{% url 'orders:add_to_cart' product.id %}" class="flex-fill">
+                        <form method="post" action="{% url 'orders:add_to_cart' product.id %}">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                            <button type="submit" class="btn btn-primary btn-lg w-100 py-3">
                                 🛒 Добавить в корзину
                             </button>
                         </form>
+
+                        <!-- Кнопка обсудить товар - ПЕРЕНЕСЕНА СЮДА -->
+                        <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
+                            class="btn btn-outline-brown btn-lg py-3" title="Начать обсуждение этого товара с мастером">
+                            💬 Обсудить товар с мастером
+                        </a>
                         {% else %}
-                        <button class="btn btn-outline-secondary btn-lg w-100" disabled title="Это ваш товар">
+                        <button class="btn btn-outline-secondary btn-lg w-100 py-3" disabled title="Это ваш товар">
                             🛒 Ваш товар
                         </button>
                         {% endif %}
                         {% else %}
-                        <a href="{% url 'users:login' %}?next={{ request.path }}" class="btn btn-primary btn-lg w-100">
+                        <a href="{% url 'users:login' %}?next={{ request.path }}"
+                            class="btn btn-primary btn-lg w-100 py-3">
                             🛒 Войдите, чтобы добавить в корзину
                         </a>
                         {% endif %}
 
                         <!-- Кнопка избранного -->
-                        <div class="favorite-section ms-2">
+                        <div class="favorite-section">
                             {% if user.is_authenticated %}
                             {% if is_own_product %}
-                            <button class="btn btn-outline-secondary btn-lg" disabled title="Это ваш товар">
+                            <button class="btn btn-outline-secondary btn-lg w-100 py-3" disabled title="Это ваш товар">
                                 ⭐ Ваш товар
                             </button>
                             {% elif is_in_favorites %}
                             <form method="post"
                                 action="{% url 'products:remove_from_favorites_by_product' product.id %}">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-danger btn-lg" title="Удалить из избранного">
+                                <button type="submit" class="btn btn-danger btn-lg w-100 py-3"
+                                    title="Удалить из избранного">
                                     ❤️ В избранном
                                 </button>
                             </form>
                             {% else %}
                             <form method="post" action="{% url 'products:add_to_favorites' product.id %}">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-primary btn-lg"
+                                <button type="submit" class="btn btn-outline-primary btn-lg w-100 py-3"
                                     title="Добавить в избранное">
-                                    🤍 В избранное
+                                    🤍 Добавить в избранное
                                 </button>
                             </form>
                             {% endif %}
                             {% else %}
                             <a href="{% url 'users:login' %}?next={{ request.path }}"
-                                class="btn btn-outline-primary btn-lg" title="Войдите, чтобы добавить в избранное">
-                                🤍 В избранное
+                                class="btn btn-outline-primary btn-lg w-100 py-3"
+                                title="Войдите, чтобы добавить в избранное">
+                                🤍 Добавить в избранное
                             </a>
                             {% endif %}
                         </div>
@@ -232,34 +186,13 @@
 
                     <!-- Дополнительные кнопки -->
                     <div class="d-grid gap-2">
-                        <!-- Кнопка "Обсудить товар" для мобильных -->
-                        {% if user.is_authenticated and not is_own_product %}
-                        <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
-                            class="btn btn-outline-brown btn-lg">
-                            💬 Обсудить товар с мастером
-                        </a>
-                        {% elif not user.is_authenticated %}
-                        <a href="{% url 'users:login' %}?next={{ request.path }}" class="btn btn-outline-brown btn-lg">
-                            💬 Обсудить товар с мастером
-                        </a>
-                        {% endif %}
-
-                        <!-- Информация о чатах по товару -->
                         {% if user.is_authenticated %}
-                        <div class="text-center mt-2">
-                            <small class="text-muted">
-                                💬 Каждый товар имеет отдельный чат для обсуждения
-                            </small>
-                        </div>
-                        {% endif %}
-
-                        {% if user.is_authenticated %}
-                        <a href="{% url 'orders:cart_view' %}" class="btn btn-outline-brown">
+                        <a href="{% url 'orders:cart_view' %}" class="btn btn-outline-secondary btn-lg py-2">
                             📦 Перейти в корзину
                         </a>
                         {% endif %}
 
-                        <a href="{% url 'products:catalog' %}" class="btn btn-outline-secondary">
+                        <a href="{% url 'products:catalog' %}" class="btn btn-outline-secondary btn-lg py-2">
                             ← Вернуться в каталог
                         </a>
                     </div>
@@ -267,78 +200,6 @@
             </div>
         </div>
     </div>
-
-    <!-- Блок "О мастере" -->
-    <div class="row mt-5">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <h4 class="fw-bold mb-4">🎨 О мастере</h4>
-                    <div class="row">
-                        <div class="col-md-8">
-                            {% if product.master.profile.bio %}
-                            <p class="text-muted mb-3">{{ product.master.profile.bio }}</p>
-                            {% else %}
-                            <p class="text-muted mb-3">Мастер пока не добавил информацию о себе</p>
-                            {% endif %}
-
-                            <div class="d-flex flex-wrap gap-3">
-                                {% if product.master.profile.city %}
-                                <span class="badge bg-light text-dark">
-                                    📍 {{ product.master.profile.city }}
-                                </span>
-                                {% endif %}
-                                <span class="badge bg-light text-dark">
-                                    🎨 {{ product.master.products.count }} товаров
-                                </span>
-                                {% if product.master.date_joined %}
-                                <span class="badge bg-light text-dark">
-                                    📅 На сайте с {{ product.master.date_joined|date:"Y" }} года
-                                </span>
-                                {% endif %}
-                            </div>
-                        </div>
-                        <div class="col-md-4 text-md-end">
-                            {% if user.is_authenticated and not is_own_product %}
-                            <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
-                                class="btn btn-primary btn-lg mt-3">
-                                💬 Обсудить этот товар
-                            </a>
-                            {% elif not user.is_authenticated %}
-                            <a href="{% url 'users:login' %}?next={{ request.path }}"
-                                class="btn btn-primary btn-lg mt-3">
-                                💬 Обсудить этот товар
-                            </a>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Похожие товары -->
-    {% if not is_own_product %}
-    <div class="row mt-5">
-        <div class="col-12">
-            <h3 class="fw-bold mb-4">🎨 Другие товары мастера</h3>
-            <div class="row">
-                <div class="col-12 text-center py-4">
-                    <p class="text-muted">Здесь будут показаны другие товары мастера
-                        {% if product.master.get_full_name %}
-                        {{ product.master.get_full_name }}
-                        {% else %}
-                        {{ product.master.email }}
-                        {% endif %}
-                    </p>
-                    <small class="text-muted">
-                        💡 Каждый товар имеет отдельный чат для обсуждения с мастером
-                    </small>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 
     <!-- Кнопки управления для владельца товара -->
     {% if is_own_product %}
@@ -430,41 +291,34 @@
     {% endif %}
 </div>
 
-<!-- Модальное окно для просмотра изображений в полном размере -->
-<div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content bg-dark">
-            <div class="modal-header border-0">
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+<!-- Модальное окно для просмотра изображений в полном размере - УПРОЩЕННОЕ -->
+<div class="modal" id="imageModal" tabindex="-1" aria-hidden="true" style="background-color: rgba(0,0,0,0.95);">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content bg-transparent border-0">
+            <div class="modal-header border-0 position-absolute top-0 end-0 z-3">
+                <button type="button" class="btn-close btn-close-white" onclick="closeImageModal()"
                     aria-label="Close"></button>
             </div>
-            <div class="modal-body text-center">
-                <div id="modalCarousel" class="carousel slide" data-bs-interval="false">
-                    <div class="carousel-inner">
-                        {% for image in product.images.all %}
-                        <div class="carousel-item {% if forloop.first %}active{% endif %}">
-                            <img src="{{ image.image.url }}" class="img-fluid modal-image" alt="{{ product.title }}"
-                                style="max-height: 70vh; object-fit: contain;">
-                        </div>
-                        {% endfor %}
-                    </div>
-
-                    {% if product.images.count > 1 %}
-                    <button class="carousel-control-prev" type="button" data-bs-target="#modalCarousel"
-                        data-bs-slide="prev">
-                        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-                        <span class="visually-hidden">Previous</span>
-                    </button>
-                    <button class="carousel-control-next" type="button" data-bs-target="#modalCarousel"
-                        data-bs-slide="next">
-                        <span class="carousel-control-next-icon" aria-hidden="true"></span>
-                        <span class="visually-hidden">Next</span>
-                    </button>
-                    {% endif %}
+            <div class="modal-body p-0 d-flex align-items-center justify-content-center">
+                <div class="w-100 h-100 d-flex align-items-center justify-content-center">
+                    <img id="modalImage" src="" class="img-fluid" alt="{{ product.title }}"
+                        style="max-height: 90vh; max-width: 90vw; object-fit: contain;">
                 </div>
+
+                <!-- Кнопки навигации -->
+                {% if product.images.count > 1 %}
+                <button class="btn btn-outline-light position-absolute start-0 top-50 translate-middle-y ms-3 z-3"
+                    onclick="prevImage()" style="opacity: 0.8;">
+                    ‹
+                </button>
+                <button class="btn btn-outline-light position-absolute end-0 top-50 translate-middle-y me-3 z-3"
+                    onclick="nextImage()" style="opacity: 0.8;">
+                    ›
+                </button>
+                {% endif %}
             </div>
-            <div class="modal-footer border-0 justify-content-center">
-                <small class="text-white">
+            <div class="modal-footer border-0 position-absolute bottom-0 start-50 translate-middle-x z-3">
+                <small class="text-white bg-dark bg-opacity-50 px-3 py-1 rounded">
                     Изображение <span id="currentImage">1</span> из {{ product.images.count }}
                 </small>
             </div>
@@ -480,8 +334,9 @@
     .btn-primary {
         background-color: #8B4513;
         border-color: #8B4513;
-        border-radius: 10px;
+        border-radius: 12px;
         font-weight: 600;
+        font-size: 1.1rem;
     }
 
     .btn-primary:hover {
@@ -492,8 +347,9 @@
     .btn-outline-brown {
         color: #8B4513;
         border-color: #8B4513;
-        border-radius: 10px;
+        border-radius: 12px;
         font-weight: 600;
+        font-size: 1.1rem;
     }
 
     .btn-outline-brown:hover {
@@ -508,107 +364,160 @@
 
     .carousel-control-prev,
     .carousel-control-next {
-        width: 5%;
+        width: 8%;
     }
 
-    /* Анимация для кнопок */
+    /* Убраны все анимации */
     .btn {
-        transition: all 0.3s ease;
+        transition: none;
     }
 
     .btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(139, 69, 19, 0.2);
+        transform: none;
+        box-shadow: none;
     }
 
-    /* Стили для кнопок избранного */
-    .favorite-section .btn {
-        min-width: 140px;
-    }
-
-    /* Стили для галереи */
     .cursor-zoom {
         cursor: zoom-in;
-        transition: transform 0.3s ease;
     }
 
     .cursor-zoom:hover {
-        transform: scale(1.02);
+        transform: none;
     }
 
     .carousel-indicators {
-        bottom: -40px;
+        bottom: -50px;
     }
 
     .carousel-indicators button {
         background-color: #8B4513;
         opacity: 0.5;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
     }
 
     .carousel-indicators button.active {
         opacity: 1;
+        transform: none;
     }
 
     .img-thumbnail {
-        transition: all 0.3s ease;
-        border: 2px solid transparent;
+        border: 3px solid transparent;
+        border-radius: 8px;
     }
 
     .img-thumbnail:hover {
         border-color: #8B4513;
-        transform: scale(1.05);
+        transform: none;
+    }
+
+    /* Стили для активной миниатюры */
+    .active-thumbnail {
+        border: 3px solid #8B4513 !important;
     }
 
     /* Стили для модального окна */
-    .modal-content.bg-dark {
-        background-color: rgba(0, 0, 0, 0.95) !important;
+    #imageModal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 9999;
     }
 
-    .modal-image {
-        border-radius: 10px;
+    #imageModal.show {
+        display: block;
+    }
+
+    /* Красивые тени и границы */
+    .card {
+        border-radius: 16px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .carousel-item img {
+        border-radius: 12px;
+    }
+
+    /* Улучшенные отступы */
+    .container {
+        padding-left: 20px;
+        padding-right: 20px;
     }
 
     /* Адаптивность для мобильных */
     @media (max-width: 768px) {
-        .modal-dialog.modal-xl {
-            margin: 0.5rem;
-        }
-
-        .carousel-indicators {
-            bottom: -30px;
-        }
-
         .img-thumbnail {
-            height: 60px !important;
+            height: 80px !important;
         }
 
         .btn-lg {
-            font-size: 0.9rem;
-            padding: 0.75rem 1rem;
+            font-size: 1rem;
+            padding: 1rem 1.5rem;
+        }
+
+        .col-md-7,
+        .col-md-5 {
+            margin-bottom: 2rem;
         }
     }
 </style>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Обработка сообщений после действий с избранным
-        const urlParams = new URLSearchParams(window.location.search);
-        const message = urlParams.get('message');
-        const messageType = urlParams.get('message_type');
+    let currentImageIndex = 0;
+    const totalImages = {{ product.images.count }};
+    const imageUrls = [
+        {% for image in product.images.all %}
+    "{{ image.image.url }}",
+        {% endfor %}
+    ];
 
-        if (message) {
-            showMessage(message, messageType);
-        }
+    // Функция для открытия модального окна с определенным изображением - ПРОСТАЯ
+    function openImageModal(slideIndex) {
+        currentImageIndex = parseInt(slideIndex);
 
-        // Функция для открытия модального окна с определенным изображением
-        function openImageModal(slideIndex) {
-            if ({{ product.images.count }
-        } > 1) {
-        const modalCarousel = new bootstrap.Carousel(document.getElementById('modalCarousel'));
-        modalCarousel.to(slideIndex);
+        // Сразу показываем изображение
+        document.getElementById('modalImage').src = imageUrls[currentImageIndex];
+        updateImageCounter(currentImageIndex + 1);
+
+        // Показываем модальное окно
+        document.getElementById('imageModal').style.display = 'block';
+        document.getElementById('imageModal').classList.add('show');
+
+        // Блокируем прокрутку body
+        document.body.style.overflow = 'hidden';
     }
-    updateImageCounter(slideIndex + 1);
+
+    // Функция для закрытия модального окна
+    function closeImageModal() {
+        document.getElementById('imageModal').style.display = 'none';
+        document.getElementById('imageModal').classList.remove('show');
+
+        // Разблокируем прокрутку body
+        document.body.style.overflow = 'auto';
+    }
+
+    // Функция для перехода к следующему изображению
+    function nextImage() {
+        if (totalImages > 1) {
+            currentImageIndex = (currentImageIndex + 1) % totalImages;
+            document.getElementById('modalImage').src = imageUrls[currentImageIndex];
+            updateImageCounter(currentImageIndex + 1);
         }
+    }
+
+    // Функция для перехода к предыдущему изображению
+    function prevImage() {
+        if (totalImages > 1) {
+            currentImageIndex = (currentImageIndex - 1 + totalImages) % totalImages;
+            document.getElementById('modalImage').src = imageUrls[currentImageIndex];
+            updateImageCounter(currentImageIndex + 1);
+        }
+    }
 
     // Функция обновления счетчика изображений
     function updateImageCounter(current) {
@@ -618,47 +527,37 @@
         }
     }
 
-    // Обработчик событий для модальной карусели
-    const modalCarousel = document.getElementById('modalCarousel');
-    if (modalCarousel) {
-        modalCarousel.addEventListener('slide.bs.carousel', function (event) {
-            updateImageCounter(event.to + 1);
-        });
-    }
-
-    // Добавляем обработчик клавиатуры для навигации
+    // Обработчик клавиатуры
     document.addEventListener('keydown', function (event) {
-        const imageModal = document.getElementById('imageModal');
-        if (imageModal && imageModal.classList.contains('show')) {
-            const modalCarousel = bootstrap.Carousel.getInstance(document.getElementById('modalCarousel'));
-            if (event.key === 'ArrowLeft' && modalCarousel) {
-                modalCarousel.prev();
-            } else if (event.key === 'ArrowRight' && modalCarousel) {
-                modalCarousel.next();
+        const modal = document.getElementById('imageModal');
+        if (modal && modal.style.display === 'block') {
+            if (event.key === 'ArrowLeft') {
+                prevImage();
+            } else if (event.key === 'ArrowRight') {
+                nextImage();
             } else if (event.key === 'Escape') {
-                bootstrap.Modal.getInstance(imageModal).hide();
+                closeImageModal();
             }
         }
     });
 
-    function showMessage(message, type = 'success') {
-        const alertClass = type === 'error' ? 'alert-danger' : 'alert-success';
-        const alertDiv = document.createElement('div');
-        alertDiv.className = `alert ${alertClass} alert-dismissible fade show mt-3`;
-        alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-
-        // Вставляем сообщение перед кнопками действий
-        const actionButtons = document.querySelector('.d-grid.gap-2.d-md-flex.mb-4');
-        if (actionButtons) {
-            actionButtons.parentNode.insertBefore(alertDiv, actionButtons);
+    // Закрытие по клику на фон
+    document.getElementById('imageModal').addEventListener('click', function (event) {
+        if (event.target === this) {
+            closeImageModal();
         }
-    }
+    });
 
-    // Делаем функции глобальными для использования в onclick
-    window.openImageModal = openImageModal;
+    // Обработчик для кнопок на главной карусели
+    document.addEventListener('DOMContentLoaded', function () {
+        // Убираем стандартное поведение Bootstrap карусели
+        const carousel = document.getElementById('productCarousel');
+        if (carousel) {
+            carousel.addEventListener('slide.bs.carousel', function (event) {
+                // Отменяем стандартное переключение, так как у нас своя логика
+                // event.preventDefault();
+            });
+        }
     });
 </script>
 {% endblock %}

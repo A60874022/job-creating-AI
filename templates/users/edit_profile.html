@@ -102,7 +102,8 @@
                                                         </div>
                                                         <div class="avatar-upload-field" style="display: none;">
                                                             {{ profile_form.avatar }}
-                                                            <div class="form-text mt-2">Выберите новое изображение</div>
+                                                            <div class="form-text mt-2">Выберите новое изображение (JPG,
+                                                                PNG, GIF, WebP, макс. 5MB)</div>
                                                         </div>
                                                         <input type="hidden" name="avatar-clear" id="avatar-clear"
                                                             value="false">
@@ -111,7 +112,8 @@
                                                     <!-- Для нового аватара -->
                                                     <div class="new-avatar">
                                                         {{ profile_form.avatar }}
-                                                        <div class="form-text mt-2">Выберите файл изображения</div>
+                                                        <div class="form-text mt-2">Выберите файл изображения (JPG, PNG,
+                                                            GIF, WebP, макс. 5MB)</div>
                                                     </div>
                                                     {% endif %}
                                                 </div>
@@ -121,7 +123,7 @@
                                                 </div>
                                                 {% endif %}
                                                 <div class="form-text">
-                                                    Рекомендуемый размер: 150x150 px. Форматы: JPG, PNG, GIF
+                                                    Рекомендуемый размер: 150x150 px. Форматы: JPG, PNG, GIF, WebP
                                                 </div>
                                             </div>
                                         </div>
@@ -157,7 +159,8 @@
                                                 </div>
                                                 {% endif %}
                                                 <div class="form-text">
-                                                    Укажите город для лучшего поиска товаров
+                                                    Укажите город для лучшего поиска товаров. Только кириллические
+                                                    буквы, пробелы и дефисы.
                                                 </div>
                                             </div>
 
@@ -168,14 +171,19 @@
                                                     💬 О себе
                                                 </label>
                                                 {{ profile_form.bio }}
+                                                <div class="d-flex justify-content-between align-items-center mt-1">
+                                                    <div class="form-text">
+                                                        Расскажите о себе, своем опыте и творчестве
+                                                    </div>
+                                                    <div class="form-text text-end">
+                                                        <span id="bio-counter">500</span> символов осталось
+                                                    </div>
+                                                </div>
                                                 {% if profile_form.bio.errors %}
                                                 <div class="text-danger small mt-1">
                                                     {{ profile_form.bio.errors.0 }}
                                                 </div>
                                                 {% endif %}
-                                                <div class="form-text">
-                                                    Расскажите о себе, своем опыте и творчестве (максимум 500 символов)
-                                                </div>
                                             </div>
                                         </div>
 
@@ -301,25 +309,38 @@
     .existing-avatar .btn {
         min-width: 140px;
     }
+
+    #bio-counter {
+        font-weight: normal;
+        transition: all 0.3s ease;
+    }
+
+    .counter-warning {
+        color: #dc3545;
+        font-weight: bold;
+    }
 </style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Счетчик символов для поля "О себе"
+        // Счетчик символов для поля "О себе" - исправленная версия
         const bioField = document.getElementById('{{ profile_form.bio.id_for_label }}');
-        if (bioField) {
-            const counter = document.createElement('div');
-            counter.className = 'form-text text-end mt-1';
-            bioField.parentNode.appendChild(counter);
+        const bioCounter = document.getElementById('bio-counter');
 
+        if (bioField && bioCounter) {
             function updateCounter() {
                 const remaining = 500 - bioField.value.length;
-                counter.textContent = `${remaining} символов осталось`;
-                counter.style.color = remaining < 0 ? 'red' : '#6c757d';
+                bioCounter.textContent = `${remaining}`;
+
+                if (remaining < 0) {
+                    bioCounter.classList.add('counter-warning');
+                } else {
+                    bioCounter.classList.remove('counter-warning');
+                }
             }
 
             bioField.addEventListener('input', updateCounter);
-            updateCounter();
+            updateCounter(); // Инициализация при загрузке
         }
 
         // Обработчики для аватара
@@ -335,6 +356,10 @@
                 avatarUploadField.style.display = 'block';
                 this.style.display = 'none';
                 removeAvatarBtn.style.display = 'none';
+                // Сбрасываем флаг удаления при замене
+                if (avatarClearInput) {
+                    avatarClearInput.value = 'false';
+                }
             });
         }
 
@@ -355,9 +380,14 @@
                 replaceAvatarBtn.style.display = 'none';
                 removeAvatarBtn.style.display = 'none';
 
+                // Скрываем поле загрузки, если оно было открыто
+                if (avatarUploadField) {
+                    avatarUploadField.style.display = 'none';
+                }
+
                 // Показываем сообщение
                 const message = document.createElement('div');
-                message.className = 'alert alert-info mt-2';
+                message.className = 'alert alert-info mt-2 small';
                 message.textContent = 'Аватар будет удален после сохранения профиля';
                 this.closest('.existing-avatar').appendChild(message);
             });
@@ -369,6 +399,26 @@
             avatarInput.addEventListener('change', function (e) {
                 const file = e.target.files[0];
                 if (file) {
+                    // Сбрасываем флаг удаления при выборе нового файла
+                    if (avatarClearInput) {
+                        avatarClearInput.value = 'false';
+                    }
+
+                    // Проверка типа файла
+                    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                    if (!validTypes.includes(file.type)) {
+                        alert('Неподдерживаемый формат файла. Используйте JPG, PNG, GIF или WebP.');
+                        this.value = '';
+                        return;
+                    }
+
+                    // Проверка размера файла (5MB)
+                    if (file.size > 5 * 1024 * 1024) {
+                        alert('Размер файла не должен превышать 5MB.');
+                        this.value = '';
+                        return;
+                    }
+
                     const reader = new FileReader();
                     reader.onload = function (e) {
                         if (avatarDisplay) {
@@ -381,6 +431,34 @@
                     };
                     reader.readAsDataURL(file);
                 }
+            });
+        }
+
+        // Обработка отправки формы - дополнительная проверка
+        const form = document.querySelector('form');
+        if (form) {
+            form.addEventListener('submit', function (e) {
+                // Проверяем, не превышено ли количество символов в поле "О себе"
+                if (bioField && bioField.value.length > 500) {
+                    e.preventDefault();
+                    alert('Поле "О себе" не должно превышать 500 символов. Сейчас: ' + bioField.value.length);
+                    bioField.focus();
+                    return false;
+                }
+
+                // Проверяем валидность города (кириллица)
+                const cityField = document.getElementById('{{ profile_form.city.id_for_label }}');
+                if (cityField && cityField.value.trim() !== '') {
+                    const cityValue = cityField.value.trim();
+                    const cyrillicRegex = /^[а-яА-ЯёЁ\s\-]+$/;
+                    if (!cyrillicRegex.test(cityValue)) {
+                        e.preventDefault();
+                        alert('Город должен содержать только кириллические буквы, пробелы и дефисы.');
+                        cityField.focus();
+                        return false;
+                    }
+                }
+                return true;
             });
         }
     });
