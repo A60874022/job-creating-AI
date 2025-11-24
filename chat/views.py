@@ -67,10 +67,10 @@ def dialogue_list(request):
 
 
 @login_required
-def dialogue_detail(request, dialogue_id):
+def dialogue_detail(request, pk):
     """Страница конкретного диалога"""
     try:
-        dialogue = get_object_or_404(Dialogue, id=dialogue_id)
+        dialogue = get_object_or_404(Dialogue, id=pk)
 
         # Проверка прав доступа - пользователь должен быть участником диалога
         if request.user not in [dialogue.user1, dialogue.user2]:
@@ -89,7 +89,7 @@ def dialogue_detail(request, dialogue_id):
 
             # Помечаем уведомления о сообщениях в этом диалоге как прочитанные
             NotificationService.mark_dialogue_notifications_read(
-                request.user, dialogue_id
+                request.user, pk
             )
 
         # Обработка отправки нового сообщения
@@ -105,11 +105,11 @@ def dialogue_detail(request, dialogue_id):
                     sender=request.user,
                     recipient=interlocutor,
                     message_text=text,
-                    dialogue_id=dialogue_id,
+                    dialogue_id=pk,
                 )
 
                 messages.success(request, "Сообщение отправлено")
-                return redirect("chat:dialogue_detail", dialogue_id=dialogue_id)
+                return redirect("chat:dialogue_detail", pk=pk)
 
         # Получаем все сообщения диалога
         messages_list = dialogue.messages.order_by("created_at")
@@ -127,7 +127,7 @@ def dialogue_detail(request, dialogue_id):
     except Exception as e:
         logger.error(
             "Error in dialogue detail for dialogue %s, user %s: %s",
-            dialogue_id,
+            pk,
             request.user.id,
             str(e),
             exc_info=True,
@@ -138,17 +138,17 @@ def dialogue_detail(request, dialogue_id):
 
 @login_required
 @require_POST
-def send_message(request, dialogue_id):
+def send_message(request, pk):
     """API endpoint для отправки сообщения"""
     try:
-        dialogue = get_object_or_404(Dialogue, id=dialogue_id)
+        dialogue = get_object_or_404(Dialogue, id=pk)
 
         # Проверка прав доступа
         if request.user not in [dialogue.user1, dialogue.user2]:
             logger.error(
                 "User %s attempted to send message to unauthorized dialogue %s",
                 request.user.id,
-                dialogue_id,
+                pk,
             )
             return JsonResponse({"status": "error", "message": "No permission"})
 
@@ -166,7 +166,7 @@ def send_message(request, dialogue_id):
                 sender=request.user,
                 recipient=interlocutor,
                 message_text=text,
-                dialogue_id=dialogue_id,
+                dialogue_id=pk,
             )
 
             return JsonResponse(
@@ -182,7 +182,7 @@ def send_message(request, dialogue_id):
     except Exception as e:
         logger.error(
             "Error sending message in dialogue %s by user %s: %s",
-            dialogue_id,
+            pk,
             request.user.id,
             str(e),
             exc_info=True,
@@ -192,17 +192,17 @@ def send_message(request, dialogue_id):
 
 @login_required
 @require_POST
-def mark_messages_read(request, dialogue_id):
+def mark_messages_read(request, pk):
     """API endpoint для пометки сообщений как прочитанных"""
     try:
-        dialogue = get_object_or_404(Dialogue, id=dialogue_id)
+        dialogue = get_object_or_404(Dialogue, id=pk)
 
         # Проверка прав доступа
         if request.user not in [dialogue.user1, dialogue.user2]:
             logger.error(
                 "User %s attempted to mark messages read in unauthorized dialogue %s",
                 request.user.id,
-                dialogue_id,
+                pk,
             )
             return JsonResponse({"status": "error", "message": "No permission"})
 
@@ -214,14 +214,14 @@ def mark_messages_read(request, dialogue_id):
         updated_count = messages_to_mark.update(is_read=True)
 
         # Помечаем уведомления как прочитанные
-        NotificationService.mark_dialogue_notifications_read(request.user, dialogue_id)
+        NotificationService.mark_dialogue_notifications_read(request.user, pk)
 
         return JsonResponse({"status": "success", "updated_count": updated_count})
 
     except Exception as e:
         logger.error(
             "Error marking messages read in dialogue %s by user %s: %s",
-            dialogue_id,
+            pk,
             request.user.id,
             str(e),
             exc_info=True,
@@ -230,10 +230,10 @@ def mark_messages_read(request, dialogue_id):
 
 
 @login_required
-def delete_dialogue(request, dialogue_id):
+def delete_dialogue(request, pk):
     """Удаление диалога"""
     try:
-        dialogue = get_object_or_404(Dialogue, id=dialogue_id)
+        dialogue = get_object_or_404(Dialogue, id=pk)
 
         # Проверяем права доступа
         if request.user not in [dialogue.user1, dialogue.user2]:
@@ -243,10 +243,10 @@ def delete_dialogue(request, dialogue_id):
         if request.method == "POST":
             # Удаляем уведомления о диалоге для обоих пользователей
             NotificationService.delete_dialogue_notifications(
-                dialogue.user1, dialogue_id
+                dialogue.user1, pk
             )
             NotificationService.delete_dialogue_notifications(
-                dialogue.user2, dialogue_id
+                dialogue.user2, pk
             )
 
             # Полное удаление диалога и всех сообщений
@@ -261,7 +261,7 @@ def delete_dialogue(request, dialogue_id):
     except Exception as e:
         logger.error(
             "Error deleting dialogue %s by user %s: %s",
-            dialogue_id,
+            pk,
             request.user.id,
             str(e),
             exc_info=True,
@@ -310,15 +310,15 @@ def clear_all_dialogues(request):
 
 
 @login_required
-def start_dialogue_from_product(request, product_id):
+def start_dialogue_from_product(request, pk):
     """Начать диалог из карточки товара"""
     try:
-        product = get_object_or_404(Product, id=product_id)
+        product = get_object_or_404(Product, id=pk)
 
         # Проверяем, что пользователь не пытается написать сам себе
         if request.user == product.master:
             messages.error(request, "Вы не можете начать диалог с самим собой")
-            return redirect("products:product_detail", product_id=product_id)
+            return redirect("products:product_detail", pk=pk)
 
         # Ищем существующий диалог для этого товара
         dialogue = Dialogue.objects.filter(
@@ -337,15 +337,15 @@ def start_dialogue_from_product(request, product_id):
                 user1=request.user, user2=product.master, product=product
             )
 
-        return redirect("chat:dialogue_detail", dialogue_id=dialogue.id)
+        return redirect("chat:dialogue_detail", pk=dialogue.id)
 
     except Exception as e:
         logger.error(
             "Error starting dialogue from product %s by user %s: %s",
-            product_id,
+            pk,
             request.user.id,
             str(e),
             exc_info=True,
         )
         messages.error(request, "Ошибка при создании диалога")
-        return redirect("products:product_detail", product_id=product_id)
+        return redirect("products:product_detail", pk=pk)

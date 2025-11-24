@@ -125,7 +125,7 @@
                         <!-- Кнопка добавления в корзину -->
                         {% if user.is_authenticated %}
                         {% if not is_own_product %}
-                        <form method="post" action="{% url 'orders:add_to_cart' product.id %}">
+                        <form method="post" action="{% url 'orders:add_to_cart' product.pk %}">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-primary btn-lg w-100 py-3">
                                 🛒 Добавить в корзину
@@ -133,7 +133,7 @@
                         </form>
 
                         <!-- Кнопка обсудить товар - ПЕРЕНЕСЕНА СЮДА -->
-                        <a href="{% url 'chat:start_dialogue_from_product' product.id %}"
+                        <a href="{% url 'chat:start_dialogue_from_product' product.pk %}"
                             class="btn btn-outline-brown btn-lg py-3" title="Начать обсуждение этого товара с мастером">
                             💬 Обсудить товар с мастером
                         </a>
@@ -158,7 +158,7 @@
                             </button>
                             {% elif is_in_favorites %}
                             <form method="post"
-                                action="{% url 'products:remove_from_favorites_by_product' product.id %}">
+                                action="{% url 'products:remove_from_favorites_by_product' product.pk %}">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-danger btn-lg w-100 py-3"
                                     title="Удалить из избранного">
@@ -166,7 +166,7 @@
                                 </button>
                             </form>
                             {% else %}
-                            <form method="post" action="{% url 'products:add_to_favorites' product.id %}">
+                            <form method="post" action="{% url 'products:add_to_favorites' product.pk %}">
                                 {% csrf_token %}
                                 <button type="submit" class="btn btn-outline-primary btn-lg w-100 py-3"
                                     title="Добавить в избранное">

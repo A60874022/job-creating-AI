@@ -40,7 +40,7 @@
                     </div>
 
                     <div class="d-grid gap-2">
-                        <a href="{% url 'products:product_detail' dialogue.product.id %}"
+                        <a href="{% url 'products:product_detail' dialogue.product.pk %}"
                             class="btn btn-outline-primary btn-sm">
                             👀 Перейти к товару
                         </a>
@@ -156,7 +156,7 @@
                             <small class="text-muted">
                                 {% if dialogue.product %}
                                 Обсуждение товара:
-                                <a href="{% url 'products:product_detail' dialogue.product.id %}"
+                                <a href="{% url 'products:product_detail' dialogue.product.pk %}"
                                     class="text-brown text-decoration-none">
                                     {{ dialogue.product.title }}
                                 </a>

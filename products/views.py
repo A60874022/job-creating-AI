@@ -269,10 +269,10 @@ def profile(request):
 
 
 @login_required
-def add_to_favorites(request, product_id):
+def add_to_favorites(request,  pk):
     """Добавление товара в избранное"""
     try:
-        product = get_object_or_404(Product, id=product_id, is_active=True)
+        product = get_object_or_404(Product, id= pk, is_active=True)
 
         # УБРАНА ПРОВЕРКА: if product.master == request.user:
         # Теперь мастер может добавлять в избранное любые товары, включая свои
@@ -291,7 +291,7 @@ def add_to_favorites(request, product_id):
     except Exception as e:
         logger.error(
             "Add to favorites failed for product %s by user %s: %s",
-            product_id,
+            pk,
             request.user.id,
             str(e),
             exc_info=True,
@@ -301,10 +301,10 @@ def add_to_favorites(request, product_id):
 
 
 @login_required
-def remove_from_favorites(request, favorite_id):
+def remove_from_favorites(request, pk):  # Изменил favorite_id на pk
     """Удаление товара из избранного"""
     try:
-        favorite = get_object_or_404(Favorite, id=favorite_id, user=request.user)
+        favorite = get_object_or_404(Favorite, id=pk, user=request.user)  # Используем pk
         product_title = favorite.product.title
         favorite.delete()
 
@@ -314,7 +314,7 @@ def remove_from_favorites(request, favorite_id):
     except Exception as e:
         logger.error(
             "Remove favorite failed for favorite %s by user %s: %s",
-            favorite_id,
+            pk,  # Используем pk
             request.user.id,
             str(e),
             exc_info=True,
@@ -324,21 +324,21 @@ def remove_from_favorites(request, favorite_id):
 
 
 @login_required
-def remove_from_favorites_by_product(request, product_id):
+def remove_from_favorites_by_product(request, pk):  # Изменил product_id на pk
     """Удаление товара из избранного по product_id"""
     try:
-        product = get_object_or_404(Product, id=product_id)
+        product = get_object_or_404(Product, id=pk)  # Используем pk
         favorite = get_object_or_404(Favorite, user=request.user, product=product)
         product_title = favorite.product.title
         favorite.delete()
 
         messages.success(request, f'Товар "{product_title}" удален из избранного')
-        return redirect(request.META.get("HTTP_REFERER", "catalog"))
+        return redirect(request.META.get("HTTP_REFERER", "products:catalog"))
 
     except Exception as e:
         logger.error(
             "Remove favorite by product failed for product %s by user %s: %s",
-            product_id,
+            pk,  # Используем pk
             request.user.id,
             str(e),
             exc_info=True,
@@ -351,7 +351,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
 
-@require_GET
+
 @require_GET
 def product_autocomplete(request):
     """Автодополнение для поиска товаров"""
@@ -383,7 +383,7 @@ def product_autocomplete(request):
 
             results.append(
                 {
-                    "id": product.id,
+                    "id": product.pk,
                     "title": product.title,
                     "category": category_name,
                     "price": str(product.price),

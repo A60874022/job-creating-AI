@@ -190,7 +190,7 @@
                                                 👀 Подробнее
                                             </a>
                                             <form method="post"
-                                                action="{% url 'orders:add_to_cart' favorite.product.id %}">
+                                                action="{% url 'orders:add_to_cart' favorite.product.pk %}">
                                                 {% csrf_token %}
                                                 <button type="submit" class="btn btn-primary w-100">
                                                     🛒 В заказ

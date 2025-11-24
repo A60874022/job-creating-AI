@@ -86,7 +86,7 @@
                             </div>
                             {% endif %}
 
-                            {% if user.is_authenticated and product.id in user_favorites %}
+                            {% if user.is_authenticated and product.pk in user_favorites %}
                             <div class="position-absolute top-0 end-0 m-2">
                                 <span class="badge bg-danger">❤️</span>
                             </div>
@@ -107,7 +107,7 @@
                                     <!-- Исправленная кнопка добавления в корзину -->
                                     {% if user.is_authenticated %}
                                     {% if product.master != user %}
-                                    <form method="post" action="{% url 'orders:add_to_cart' product.id %}">
+                                    <form method="post" action="{% url 'orders:add_to_cart' product.pk %}">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-primary btn-sm" title="Добавить в корзину">
                                             🛒
@@ -137,14 +137,14 @@
                                     <button class="btn btn-outline-secondary btn-sm" disabled>
                                         ⭐ Ваш товар
                                     </button>
-                                    {% elif product.id in user_favorites %}
+                                    {% elif product.pk in user_favorites %}
                                     <form method="post"
-                                        action="{% url 'products:remove_from_favorites_by_product' product.id %}">
+                                        action="{% url 'products:remove_from_favorites_by_product' product.pk %}">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-danger btn-sm">❤️ В избранном</button>
                                     </form>
                                     {% else %}
-                                    <form method="post" action="{% url 'products:add_to_favorites' product.id %}">
+                                    <form method="post" action="{% url 'products:add_to_favorites' product.pk %}">
                                         {% csrf_token %}
                                         <button type="submit" class="btn btn-outline-danger btn-sm">🤍 Добавить в
                                             избранное</button>
@@ -474,7 +474,7 @@
             }
 
             const html = products.map(product => `
-            <a href="${product.url}" class="autocomplete-item" data-product-id="${product.id}">
+            <a href="${product.url}" class="autocomplete-item" data-product-id="${product.pk}">
                 ${product.image_url ?
                     `<img src="${product.image_url}" alt="${product.title}" class="autocomplete-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` :
                     ''

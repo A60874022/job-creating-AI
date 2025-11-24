@@ -77,7 +77,7 @@
 
                             <!-- Кнопка удаления с модальным окном -->
                             <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal"
-                                data-bs-target="#deleteModal{{ product.id }}" title="Удалить товар">
+                                data-bs-target="#deleteModal{{ product.pk }}" title="Удалить товар">
                                 🗑️
                             </button>
 
@@ -100,12 +100,12 @@
         </div>
 
         <!-- Модальное окно подтверждения удаления -->
-        <div class="modal fade" id="deleteModal{{ product.id }}" tabindex="-1"
-            aria-labelledby="deleteModalLabel{{ product.id }}" aria-hidden="true">
+        <div class="modal fade" id="deleteModal{{ product.pk }}" tabindex="-1"
+            aria-labelledby="deleteModalLabel{{ product.pk }}" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header border-0">
-                        <h5 class="modal-title fw-bold" id="deleteModalLabel{{ product.id }}">
+                        <h5 class="modal-title fw-bold" id="deleteModalLabel{{ product.pk }}">
                             🗑️ Удаление товара
                         </h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

@@ -38,15 +38,15 @@ def cart_view(request):
 
 
 @login_required
-def add_to_cart(request, product_id):
+def add_to_cart(request, pk):  # Изменил product_id на pk
     """Добавление товара в корзину"""
     try:
-        product = get_object_or_404(Product, id=product_id, is_active=True)
+        product = get_object_or_404(Product, id=pk, is_active=True)  # Используем pk
 
         # ВОССТАНАВЛИВАЕМ ПРОВЕРКУ: мастер не может покупать свои товары
         if product.master == request.user:
             messages.error(request, "Вы не можете покупать свои собственные товары")
-            return redirect("products:product_detail", product_id=product_id)
+            return redirect("products:product_detail", pk=product.id)  # Используем pk
 
         cart, created = Cart.objects.get_or_create(user=request.user)
 
@@ -71,14 +71,13 @@ def add_to_cart(request, product_id):
     except Exception as e:
         logger.error(
             "Error adding product %s to cart for user %s: %s",
-            product_id,
+            pk,  # Используем pk
             request.user.id,
             str(e),
             exc_info=True,
         )
         messages.error(request, "Ошибка при добавлении товара в корзину")
-        return redirect("products:product_detail", product_id=product_id)
-
+        return redirect("products:product_detail", pk=pk)
 
 @login_required
 def update_cart_item(request, item_id):
