@@ -38,15 +38,15 @@ def cart_view(request):
 
 
 @login_required
-def add_to_cart(request, pk):  # Изменил product_id на pk
+def add_to_cart(request, pk):
     """Добавление товара в корзину"""
     try:
-        product = get_object_or_404(Product, id=pk, is_active=True)  # Используем pk
+        product = get_object_or_404(Product, id=pk, is_active=True)
 
         # ВОССТАНАВЛИВАЕМ ПРОВЕРКУ: мастер не может покупать свои товары
         if product.master == request.user:
             messages.error(request, "Вы не можете покупать свои собственные товары")
-            return redirect("products:product_detail", pk=product.id)  # Используем pk
+            return redirect("products:product_detail", pk=product.id)
 
         cart, created = Cart.objects.get_or_create(user=request.user)
 
@@ -71,13 +71,14 @@ def add_to_cart(request, pk):  # Изменил product_id на pk
     except Exception as e:
         logger.error(
             "Error adding product %s to cart for user %s: %s",
-            pk,  # Используем pk
+            pk,
             request.user.id,
             str(e),
             exc_info=True,
         )
         messages.error(request, "Ошибка при добавлении товара в корзину")
         return redirect("products:product_detail", pk=pk)
+
 
 @login_required
 def update_cart_item(request, item_id):
@@ -143,8 +144,6 @@ def create_order(request):
         if not cart_items:
             messages.error(request, "Ваша корзина пуста")
             return redirect("orders:cart_view")
-
-        # ПРОВЕРКА 1: Удаляем товары пользователя из корзины перед созданием заказа
         own_products_removed = False
         items_to_remove = []
 
@@ -178,18 +177,13 @@ def create_order(request):
             else:
                 messages.error(request, "Ваша корзина пуста")
             return redirect("orders:cart_view")
-
-        # Показываем предупреждение, если были удалены собственные товары
         if own_products_removed:
             messages.warning(
                 request,
                 "Ваши собственные товары были удалены из корзины перед оформлением заказа.",
             )
 
-        # Создаем заказ
         order = Order.objects.create(customer=request.user, status="оформлен")
-
-        # Создаем элементы заказа
         total_amount = 0
         masters_notified = set()
 
@@ -214,8 +208,6 @@ def create_order(request):
         # Обновляем общую сумму заказа
         order.total_amount = total_amount
         order.save()
-
-        # Очищаем корзину
         cart.items.all().delete()
 
         logger.info(

@@ -88,9 +88,7 @@ def dialogue_detail(request, pk):
             ).update(is_read=True)
 
             # Помечаем уведомления о сообщениях в этом диалоге как прочитанные
-            NotificationService.mark_dialogue_notifications_read(
-                request.user, pk
-            )
+            NotificationService.mark_dialogue_notifications_read(request.user, pk)
 
         # Обработка отправки нового сообщения
         if request.method == "POST":
@@ -242,12 +240,8 @@ def delete_dialogue(request, pk):
 
         if request.method == "POST":
             # Удаляем уведомления о диалоге для обоих пользователей
-            NotificationService.delete_dialogue_notifications(
-                dialogue.user1, pk
-            )
-            NotificationService.delete_dialogue_notifications(
-                dialogue.user2, pk
-            )
+            NotificationService.delete_dialogue_notifications(dialogue.user1, pk)
+            NotificationService.delete_dialogue_notifications(dialogue.user2, pk)
 
             # Полное удаление диалога и всех сообщений
             dialogue.messages.all().delete()

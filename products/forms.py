@@ -1,6 +1,5 @@
 from django import forms
-from django.core.validators import (MaxValueValidator, MinValueValidator,
-                                    RegexValidator)
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 
 from .models import Product, ProductImage
 

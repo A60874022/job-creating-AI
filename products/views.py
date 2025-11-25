@@ -8,8 +8,13 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
-from django.views.generic import (CreateView, DeleteView, DetailView, ListView,
-                                  UpdateView)
+from django.views.generic import (
+    CreateView,
+    DeleteView,
+    DetailView,
+    ListView,
+    UpdateView,
+)
 
 from orders.models import Order
 
@@ -42,7 +47,6 @@ class ProductCreateView(LoginRequiredMixin, CreateView):
                             first_image.is_main = True
                             first_image.save()
                 else:
-                    # Логируем только реальные ошибки
                     for form in formset:
                         if form.errors:
                             logger.error(
@@ -103,10 +107,7 @@ class ProductUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
                 )
 
                 if formset.is_valid():
-                    # Просто сохраняем formset - Django автоматически обработает DELETE
                     formset.save()
-
-                    # Убедимся, что есть хотя бы одно основное изображение
                     if not self.object.images.filter(is_main=True).exists():
                         first_image = self.object.images.first()
                         if first_image:
@@ -269,14 +270,10 @@ def profile(request):
 
 
 @login_required
-def add_to_favorites(request,  pk):
+def add_to_favorites(request, pk):
     """Добавление товара в избранное"""
     try:
-        product = get_object_or_404(Product, id= pk, is_active=True)
-
-        # УБРАНА ПРОВЕРКА: if product.master == request.user:
-        # Теперь мастер может добавлять в избранное любые товары, включая свои
-
+        product = get_object_or_404(Product, id=pk, is_active=True)
         favorite, created = Favorite.objects.get_or_create(
             user=request.user, product=product
         )
@@ -301,10 +298,10 @@ def add_to_favorites(request,  pk):
 
 
 @login_required
-def remove_from_favorites(request, pk):  # Изменил favorite_id на pk
+def remove_from_favorites(request, pk):
     """Удаление товара из избранного"""
     try:
-        favorite = get_object_or_404(Favorite, id=pk, user=request.user)  # Используем pk
+        favorite = get_object_or_404(Favorite, id=pk, user=request.user)
         product_title = favorite.product.title
         favorite.delete()
 
@@ -314,7 +311,7 @@ def remove_from_favorites(request, pk):  # Изменил favorite_id на pk
     except Exception as e:
         logger.error(
             "Remove favorite failed for favorite %s by user %s: %s",
-            pk,  # Используем pk
+            pk,
             request.user.id,
             str(e),
             exc_info=True,
@@ -324,10 +321,10 @@ def remove_from_favorites(request, pk):  # Изменил favorite_id на pk
 
 
 @login_required
-def remove_from_favorites_by_product(request, pk):  # Изменил product_id на pk
+def remove_from_favorites_by_product(request, pk):
     """Удаление товара из избранного по product_id"""
     try:
-        product = get_object_or_404(Product, id=pk)  # Используем pk
+        product = get_object_or_404(Product, id=pk)
         favorite = get_object_or_404(Favorite, user=request.user, product=product)
         product_title = favorite.product.title
         favorite.delete()
@@ -338,7 +335,7 @@ def remove_from_favorites_by_product(request, pk):  # Изменил product_id 
     except Exception as e:
         logger.error(
             "Remove favorite by product failed for product %s by user %s: %s",
-            pk,  # Используем pk
+            pk,
             request.user.id,
             str(e),
             exc_info=True,
@@ -349,7 +346,6 @@ def remove_from_favorites_by_product(request, pk):  # Изменил product_id 
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
-
 
 
 @require_GET

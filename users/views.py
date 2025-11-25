@@ -4,16 +4,25 @@ import logging
 from django.contrib import messages
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.views import (LoginView, PasswordResetCompleteView,
-                                       PasswordResetConfirmView,
-                                       PasswordResetView)
+from django.contrib.auth.views import (
+    LoginView,
+    PasswordResetCompleteView,
+    PasswordResetConfirmView,
+    PasswordResetView,
+)
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import CreateView, FormView, View
 
-from .forms import (AccountDeleteForm, EmailVerificationForm, ProfileEditForm,
-                    UserEditForm, UserLoginForm, UserRegistrationForm)
+from .forms import (
+    AccountDeleteForm,
+    EmailVerificationForm,
+    ProfileEditForm,
+    UserEditForm,
+    UserLoginForm,
+    UserRegistrationForm,
+)
 from .models import User
 from .services.email_service import email_service
 

@@ -11,6 +11,7 @@ services:
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
+      - ./logs:/app/logs  
     expose:
       - "8000"
     env_file:
