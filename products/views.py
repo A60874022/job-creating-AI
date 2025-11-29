@@ -30,10 +30,21 @@ class ProductCreateView(LoginRequiredMixin, CreateView):
     template_name = "products/product_form.html"
     success_url = reverse_lazy("products:my_products")
 
+    def dispatch(self, request, *args, **kwargs):
+        # ПРОВЕРКА ГОРОДА ПЕРЕД СОЗДАНИЕМ ТОВАРА
+        if not hasattr(request.user, "profile") or not request.user.profile.city:
+            messages.warning(
+                request,
+                "⚠️ Пожалуйста, укажите город в вашем профиле перед созданием товара.",
+            )
+            return redirect("users:edit_profile")
+        return super().dispatch(request, *args, **kwargs)
+
     def form_valid(self, form):
         try:
             with transaction.atomic():
                 form.instance.master = self.request.user
+                # Город автоматически берется из профиля через свойство city модели Product
                 response = super().form_valid(form)
 
                 formset = ProductImageFormSet(
@@ -60,6 +71,7 @@ class ProductCreateView(LoginRequiredMixin, CreateView):
                                         self.request, f"Ошибка в изображении: {error}"
                                     )
 
+            messages.success(self.request, "✅ Товар успешно создан!")
             return response
 
         except Exception as e:
@@ -75,6 +87,13 @@ class ProductCreateView(LoginRequiredMixin, CreateView):
             )
         else:
             context["formset"] = ProductImageFormSet()
+
+        # Добавляем информацию о городе в контекст
+        context["user_city"] = (
+            self.request.user.profile.city
+            if hasattr(self.request.user, "profile")
+            else None
+        )
         return context
 
 
@@ -188,13 +207,17 @@ class ProductCatalogView(ListView):
             # Только активные и одобренные товары
             queryset = Product.objects.filter(
                 is_active=True, is_approved=True
-            ).select_related("master", "category")
+            ).select_related(
+                "master", "category", "master__profile__city"
+            )  # Добавляем город
 
+            # Фильтрация по категории
             category_slug = self.request.GET.get("category")
             if category_slug:
                 category = get_object_or_404(Category, slug=category_slug)
                 queryset = queryset.filter(category=category)
 
+            # Поиск по названию и описанию
             search_query = self.request.GET.get("q")
             if search_query:
                 queryset = queryset.filter(
@@ -202,11 +225,39 @@ class ProductCatalogView(ListView):
                     | Q(description__icontains=search_query)
                 )
 
+            # ФИЛЬТРАЦИЯ ПО ГОРОДУ - добавляем этот блок
+            city_query = self.request.GET.get("city")
+            if city_query:
+                queryset = queryset.filter(
+                    Q(master__profile__city__name__icontains=city_query)
+                )
+
             return queryset.order_by("-created_at")
 
         except Exception as e:
             logger.error("Error loading product catalog: %s", str(e), exc_info=True)
             return Product.objects.none()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Получаем список всех городов, в которых есть активные товары
+        from users.models import City
+
+        context["cities"] = (
+            City.objects.filter(
+                is_active=True,
+                profile__user__products__is_active=True,
+                profile__user__products__is_approved=True,
+            )
+            .distinct()
+            .order_by("name")
+        )
+
+        # Передаем выбранный город для отображения в фильтре
+        context["selected_city"] = self.request.GET.get("city", "")
+
+        return context
 
 
 class ProductDetailView(DetailView):

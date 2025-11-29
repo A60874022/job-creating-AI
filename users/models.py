@@ -130,6 +130,34 @@ def validate_image_size(value):
         )
 
 
+class City(models.Model):
+    """Модель для хранения списка городов"""
+
+    name = models.CharField(
+        max_length=150,
+        unique=True,
+        verbose_name="Название города",
+        validators=[
+            RegexValidator(
+                regex=r"^[а-яА-ЯёЁ\s\-]+$",
+                message="Город должен содержать только кириллические буквы, пробелы и дефисы",
+            )
+        ],
+    )
+    region = models.CharField(max_length=150, blank=True, verbose_name="Регион")
+    country = models.CharField(max_length=100, default="Россия", verbose_name="Страна")
+    is_active = models.BooleanField(default=True, verbose_name="Активный")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+
+    class Meta:
+        verbose_name = "Город"
+        verbose_name_plural = "Города"
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name}" + (f" ({self.region})" if self.region else "")
+
+
 class Profile(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -154,17 +182,13 @@ class Profile(models.Model):
         help_text="Максимум 500 символов",
     )
 
-    city = models.CharField(
-        max_length=150,
+    city = models.ForeignKey(
+        City,
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
-        validators=[
-            RegexValidator(
-                regex=r"^[а-яА-ЯёЁ\s\-]+$",
-                message="Город должен содержать только кириллические буквы, пробелы и дефисы",
-            )
-        ],
         verbose_name="Город",
-        help_text="Только кириллические буквы, пробелы и дефисы",
+        help_text="Выберите город из списка",
     )
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
@@ -187,14 +211,6 @@ class Profile(models.Model):
     def clean(self):
         """Дополнительная валидация на уровне модели"""
         super().clean()
-
-        # Очистка города от лишних пробелов
-        if self.city:
-            self.city = " ".join(self.city.strip().split())
-
-        # Проверка, что город не состоит только из пробелов/дефисов
-        if self.city and not any(c.isalpha() for c in self.city):
-            raise ValidationError({"city": "Введите корректное название города"})
 
     def save(self, *args, **kwargs):
         """Переопределение save для вызова clean"""

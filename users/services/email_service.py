@@ -13,6 +13,7 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.utils.translation import gettext_lazy as _
+from django.core.mail import send_mail
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +235,58 @@ class EmailService:
             logger.error(
                 f"Failed to send notification to {user_email}. "
                 f"Subject: {subject}. Error: {str(e)}"
+            )
+            return False
+
+    def send_product_approved_email(
+        self, user_email, product_title, product_url, context=None
+    ):
+        """
+        Отправляет письмо об одобрении товара
+        """
+        try:
+            if context is None:
+                context = {}
+
+            # Если URL относительный, делаем его абсолютным
+            if product_url.startswith("/"):
+                site_url = getattr(settings, "SITE_URL", "http://localhost:8000")
+                product_url = site_url + product_url
+
+            context.update(
+                {
+                    "product_title": product_title,
+                    "product_url": product_url,
+                    "site_name": "HandmadeMarket",
+                }
+            )
+
+            subject = f'Ваш товар "{product_title}" одобрен!'
+
+            html_message = f"""
+            <h1>Ваш товар одобрен!</h1>
+            <p>Здравствуйте!</p>
+            <p>Мы рады сообщить, что ваш товар <strong>"{product_title}"</strong> был успешно одобрен.</p>
+            <p><a href="{product_url}">Посмотреть товар</a></p>
+            """
+
+            plain_message = strip_tags(html_message)
+
+            send_mail(
+                subject=subject,
+                message=plain_message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user_email],
+                html_message=html_message,
+                fail_silently=False,
+            )
+
+            logger.info(f"Product approved email sent to {user_email}")
+            return True
+
+        except Exception as e:
+            logger.error(
+                f"Error sending product approved email to {user_email}: {str(e)}"
             )
             return False
 

@@ -23,7 +23,7 @@ from .forms import (
     UserLoginForm,
     UserRegistrationForm,
 )
-from .models import User
+from .models import User, City
 from .services.email_service import email_service
 
 logger = logging.getLogger(__name__)
@@ -358,9 +358,15 @@ def edit_profile(request):
                 # Показываем предупреждения если есть
                 warnings = profile_form.get_warnings()
                 for field, warning_message in warnings.items():
-                    messages.warning(request, warning_message)
+                    messages.warning(request, warning_message, extra_tags="profile")
 
-                messages.success(request, _("✅ Ваш профиль был успешно обновлен!"))
+                # Добавляем extra_tags чтобы идентифицировать сообщение профиля
+                messages.success(
+                    request,
+                    _("✅ Ваш профиль был успешно обновлен!"),
+                    extra_tags="profile",
+                )
+
                 logger.info(
                     "Profile updated successfully for user: %s",
                     user.email,
@@ -388,15 +394,23 @@ def edit_profile(request):
                     extra={"user_id": user.id},
                 )
 
-                messages.error(request, _("❌ Пожалуйста, исправьте ошибки в форме."))
+                messages.error(
+                    request,
+                    _("❌ Пожалуйста, исправьте ошибки в форме."),
+                    extra_tags="profile",
+                )
 
         else:
             user_form = UserEditForm(instance=user)
             profile_form = ProfileEditForm(instance=profile)
 
+        # Получаем список всех городов для datalist
+        cities = City.objects.filter(is_active=True).order_by("name")
+
         context = {
             "user_form": user_form,
             "profile_form": profile_form,
+            "cities": cities,  # Добавляем города в контекст
         }
         return render(request, "users/edit_profile.html", context)
 

@@ -2,7 +2,7 @@ name: Deploy Ad Service
 
 on:
   push:
-    branches: [ main ]
+    branches: [ hand_made ]
 
 jobs:
   build_and_push:

@@ -99,6 +99,21 @@
                         <p class="text-muted" style="line-height: 1.6; font-size: 1.1rem;">{{ product.description }}</p>
                     </div>
 
+                    <!-- ИНФОРМАЦИЯ О МАСТЕРЕ И ГОРОДЕ -->
+                    <div class="mb-4">
+                        <h5 class="fw-bold mb-3">👨‍🎨 Информация о мастере</h5>
+                        <div class="row">
+                            <div class="col-6">
+                                <small class="text-muted">📍 Город</small>
+                                <p class="mb-2 fw-bold">{{ product.get_city_display }}</p>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">📧 Контакты</small>
+                                <p class="mb-2 fw-bold">{{ product.master.email }}</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Детали товара -->
                     <div class="mb-4">
                         <h5 class="fw-bold mb-3">📋 Детали товара</h5>
@@ -471,9 +486,7 @@
     let currentImageIndex = 0;
     const totalImages = {{ product.images.count }};
     const imageUrls = [
-        {% for image in product.images.all %}
-    "{{ image.image.url }}",
-        {% endfor %}
+        {% for image in product.images.all %}"{{ image.image.url }}"{% if not forloop.last %}, {% endif %} {% endfor %}
     ];
 
     // Функция для открытия модального окна с определенным изображением - ПРОСТАЯ

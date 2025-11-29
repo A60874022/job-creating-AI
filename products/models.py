@@ -22,6 +22,12 @@ class Category(models.Model):
         super().save(*args, **kwargs)
 
 
+from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
+from django.db import models
+from django.urls import reverse  # Добавьте этот импорт
+
+
 class Product(models.Model):
     MAX_PRICE = 5000000
 
@@ -72,7 +78,6 @@ class Product(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
     is_active = models.BooleanField(default=True, verbose_name="Активный")
-    # Добавляем поле модерации
     is_approved = models.BooleanField(
         default=False, verbose_name="Одобрено модератором"
     )
@@ -84,6 +89,24 @@ class Product(models.Model):
 
     def __str__(self):
         return self.title
+
+    def get_absolute_url(self):
+        """Возвращает абсолютный URL для товара"""
+        return reverse("products:product_detail", kwargs={"pk": self.pk})
+
+    @property
+    def city(self):
+        """Автоматически получаем город из профиля мастера"""
+        if hasattr(self.master, "profile") and self.master.profile.city:
+            return self.master.profile.city
+        return None
+
+    def get_city_display(self):
+        """Возвращает отображаемое название города"""
+        city = self.city
+        if city:
+            return city.name
+        return "Город не указан"
 
     def get_main_image(self):
         """Возвращает главное изображение товара"""

@@ -66,4 +66,4 @@ python manage.py createsuperuser
 redis-server
 
 # 6. Запустите сервер
-python manage.py runserver
+daphne -b 0.0.0.0 -p 8000 ad_service.asgi:application

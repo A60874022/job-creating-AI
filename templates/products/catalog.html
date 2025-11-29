@@ -38,37 +38,85 @@
             <!-- Фильтры и поиск -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <form method="get" class="d-flex position-relative" id="search-form">
-                                <input type="text" name="q" class="form-control me-2"
-                                    placeholder="Начните вводить название товара..." value="{{ request.GET.q }}"
-                                    autocomplete="off" id="search-input"
-                                    data-autocomplete-url="{% url 'products:autocomplete' %}">
-                                <button type="submit" class="btn btn-outline-brown">🔍</button>
+                    <form method="get" id="filter-form">
+                        <div class="row">
+                            <!-- Поиск -->
+                            <div class="col-md-4">
+                                <div class="d-flex position-relative">
+                                    <input type="text" name="q" class="form-control me-2"
+                                        placeholder="Начните вводить название товара..." value="{{ request.GET.q }}"
+                                        autocomplete="off" id="search-input"
+                                        data-autocomplete-url="{% url 'products:autocomplete' %}">
+                                    <button type="submit" class="btn btn-outline-brown">🔍</button>
+                                    <div id="autocomplete-results" class="autocomplete-dropdown"></div>
+                                </div>
+                            </div>
 
-                                <!-- Выпадающий список с автодополнением -->
-                                <div id="autocomplete-results" class="autocomplete-dropdown"></div>
-                            </form>
-                        </div>
-                        <div class="col-md-6">
-                            <select class="form-select" onchange="location = this.value;">
-                                <option value="?{% if request.GET.q %}q={{ request.GET.q }}{% endif %}">Все категории
-                                </option>
-                                {% for category in categories %}
-                                <option
-                                    value="?category={{ category.slug }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}"
-                                    {% if request.GET.category == category.slug %}selected{% endif %}>
-                                    {{ category.name }}
-                                </option>
-                                {% empty %}
-                                <option disabled>Нет категорий</option>
-                                {% endfor %}
-                            </select>
-                        </div>
+                            <!-- Категории -->
+                            <div class="col-md-4">
+                                <select class="form-select" name="category" onchange="this.form.submit()">
+                                    <option value="">Все категории</option>
+                                    {% for category in categories %}
+                                    <option value="{{ category.slug }}" {% if request.GET.category == category.slug %}selected{% endif %}>
+                                        {{ category.name }}
+                                    </option>
+                                    {% empty %}
+                                    <option disabled>Нет категорий</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- ФИЛЬТР ПО ГОРОДАМ -->
+                            <div class="col-md-4">
+                                <select class="form-select" name="city" onchange="this.form.submit()">
+                                    <option value="">Все города</option>
+                                    {% for city in cities %}
+                                    <option value="{{ city.name }}" {% if request.GET.city == city.name %}selected{% endif %}>
+                                        {{ city.name }}
+                                    </option>
+                                    {% empty %}
+                                    <option disabled>Нет городов</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                    <!-- Кнопка сброса фильтров -->
+                    {% if request.GET.q or request.GET.category or request.GET.city %}
+                    <div class="text-center mt-3">
+                        <a href="{% url 'products:catalog' %}" class="btn btn-outline-secondary btn-sm">
+                            🗑️ Сбросить все фильтры
+                        </a>
                     </div>
+                    {% endif %}
                 </div>
             </div>
+
+            <!-- Информация о примененных фильтрах -->
+            {% if request.GET.q or request.GET.category or request.GET.city %}
+            <div class="alert alert-info mb-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>🔍 Активные фильтры:</strong>
+                        {% if request.GET.q %}
+                        <span class="badge bg-primary ms-2">Поиск: "{{ request.GET.q }}"</span>
+                        {% endif %}
+                        {% if request.GET.category %}
+                        {% for category in categories %}
+                        {% if category.slug == request.GET.category %}
+                        <span class="badge bg-brown ms-2">Категория: {{ category.name }}</span>
+                        {% endif %}
+                        {% endfor %}
+                        {% endif %}
+                        {% if request.GET.city %}
+                        <span class="badge bg-success ms-2">Город: {{ request.GET.city }}</span>
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">
+                        Найдено товаров: {{ products.paginator.count }}
+                    </small>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Сетка товаров -->
             <div class="row">
@@ -100,11 +148,25 @@
                                 <p class="card-text text-muted small">{{ product.description|truncatewords:15 }}</p>
                             </div>
 
+                            <!-- БЛОК С ИНФОРМАЦИЕЙ О ГОРОДЕ И МАСТЕРЕ -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">
+                                        <i class="bi bi-geo-alt-fill"></i>
+                                        <strong>Город:</strong> {{ product.get_city_display }}
+                                    </small>
+                                    <small class="text-muted">
+                                        <i class="bi bi-person-circle"></i>
+                                        {{ product.master.email|truncatechars:15 }}
+                                    </small>
+                                </div>
+                            </div>
+
                             <div class="mt-auto">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <span class="h5 text-brown fw-bold mb-0">{{ product.price }} ₽</span>
 
-                                    <!-- Исправленная кнопка добавления в корзину -->
+                                    <!-- Кнопка добавления в корзину -->
                                     {% if user.is_authenticated %}
                                     {% if product.master != user %}
                                     <form method="post" action="{% url 'orders:add_to_cart' product.pk %}">
@@ -163,8 +225,16 @@
                 <div class="col-12 text-center py-5">
                     <div class="mb-4" style="font-size: 4rem;">🔍</div>
                     <h3 class="fw-bold mb-3">Товары не найдены</h3>
-                    <p class="text-muted mb-4">Попробуйте изменить параметры поиска или фильтры</p>
+                    <p class="text-muted mb-4">
+                        {% if request.GET.q or request.GET.category or request.GET.city %}
+                        Попробуйте изменить параметры поиска или сбросить фильтры
+                        {% else %}
+                        В каталоге пока нет товаров
+                        {% endif %}
+                    </p>
+                    {% if request.GET.q or request.GET.category or request.GET.city %}
                     <a href="{% url 'products:catalog' %}" class="btn btn-primary btn-lg px-4">📋 Сбросить фильтры</a>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -175,8 +245,9 @@
                     {% if page_obj.has_previous %}
                     <li class="page-item">
                         <a class="page-link"
-                            href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">←
-                            Назад</a>
+                            href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.city %}&city={{ request.GET.city }}{% endif %}">
+                            ← Назад
+                        </a>
                     </li>
                     {% endif %}
 
@@ -186,8 +257,9 @@
                     {% else %}
                     <li class="page-item">
                         <a class="page-link"
-                            href="?page={{ num }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">{{
-                            num }}</a>
+                            href="?page={{ num }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.city %}&city={{ request.GET.city }}{% endif %}">
+                            {{ num }}
+                        </a>
                     </li>
                     {% endif %}
                     {% endfor %}
@@ -195,8 +267,9 @@
                     {% if page_obj.has_next %}
                     <li class="page-item">
                         <a class="page-link"
-                            href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}">Вперед
-                            →</a>
+                            href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.category %}&category={{ request.GET.category }}{% endif %}{% if request.GET.city %}&city={{ request.GET.city }}{% endif %}">
+                            Вперед →
+                        </a>
                     </li>
                     {% endif %}
                 </ul>
@@ -474,24 +547,24 @@
             }
 
             const html = products.map(product => `
-            <a href="${product.url}" class="autocomplete-item" data-product-id="${product.pk}">
-                ${product.image_url ?
+                <a href="${product.url}" class="autocomplete-item" data-product-id="${product.pk}">
+                    ${product.image_url ?
                     `<img src="${product.image_url}" alt="${product.title}" class="autocomplete-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` :
                     ''
                 }
-                ${!product.image_url ?
-                    '<div class="autocomplete-image-placeholder">🎨</div>' :
+                    ${!product.image_url ?
+                    '<div class="autocomplete-image-placeholder" style="display:flex">🎨</div>' :
                     '<div class="autocomplete-image-placeholder" style="display:none">🎨</div>'
                 }
-                <div class="autocomplete-info">
-                    <div class="autocomplete-title">${this.escapeHtml(product.title)}</div>
-                    <div class="autocomplete-meta">
-                        <span class="autocomplete-category">${this.escapeHtml(product.category)}</span>
-                        <span class="autocomplete-price">${this.escapeHtml(product.price)} ₽</span>
+                    <div class="autocomplete-info">
+                        <div class="autocomplete-title">${this.escapeHtml(product.title)}</div>
+                        <div class="autocomplete-meta">
+                            <span class="autocomplete-category">${this.escapeHtml(product.category)}</span>
+                            <span class="autocomplete-price">${this.escapeHtml(product.price)} ₽</span>
+                        </div>
                     </div>
-                </div>
-            </a>
-        `).join('');
+                </a>
+            `).join('');
 
             this.results.innerHTML = html;
             this.showResults();

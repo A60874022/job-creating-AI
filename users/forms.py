@@ -220,7 +220,7 @@ import os
 from django import forms
 from django.core.validators import MaxLengthValidator, RegexValidator
 
-from .models import Profile
+from .models import Profile, City
 
 
 class ProfileEditForm(forms.ModelForm):
@@ -241,28 +241,28 @@ class ProfileEditForm(forms.ModelForm):
         help_text="Максимум 500 символов",
     )
 
-    # Переопределяем поле city для добавления валидации
-    city = forms.CharField(
+    # Переопределяем поле city для использования текстового ввода с автодополнением
+    city = forms.ModelChoiceField(
+        queryset=City.objects.filter(is_active=True).order_by("name"),
+        required=False,
+        widget=forms.HiddenInput(),  # Скрытое поле для хранения ID выбранного города
+    )
+
+    # Новое поле для текстового ввода с автодополнением
+    city_search = forms.CharField(
         max_length=150,
         required=False,
-        validators=[
-            RegexValidator(
-                regex=r"^[а-яА-ЯёЁ\s\-]+$",
-                message="Город должен содержать только кириллические буквы, пробелы и дефисы",
-            ),
-            MaxLengthValidator(
-                150, message="Название города не должно превышать 150 символов"
-            ),
-        ],
         widget=forms.TextInput(
             attrs={
                 "class": "form-control",
-                "placeholder": "Введите ваш город",
-                "pattern": "[а-яА-ЯёЁ\\s\\-]*",
-                "title": "Только кириллические буквы, пробелы и дефисы",
+                "placeholder": "Начните вводить название города...",
+                "list": "cities-datalist",
+                "autocomplete": "off",
+                "id": "city-search-input",
             }
         ),
         label="Город",
+        help_text="Начните вводить название города и выберите из списка",
     )
 
     # Переопределяем поле avatar для добавления валидации
@@ -293,22 +293,42 @@ class ProfileEditForm(forms.ModelForm):
             label="Email адрес",
         )
 
-    def clean_city(self):
-        """Кастомная очистка поля city"""
-        city = self.cleaned_data.get("city", "").strip()
-        if city:
-            # Удаляем множественные пробелы
-            city = " ".join(city.split())
-            # Проверяем, что город не состоит только из пробелов или спецсимволов
-            if not any(c.isalpha() for c in city):
-                raise forms.ValidationError("Введите корректное название города")
-        return city
+        # Обновляем queryset для поля city в init, чтобы всегда получать актуальные данные
+        self.fields["city"].queryset = City.objects.filter(is_active=True).order_by(
+            "name"
+        )
 
-    def clean_bio(self):
-        """Кастомная очистка поля bio"""
-        bio = self.cleaned_data.get("bio", "").strip()
-        # Можно добавить дополнительную логику очистки если нужно
-        return bio
+        # Устанавливаем начальное значение для поля поиска города
+        if self.instance and self.instance.city:
+            self.fields["city_search"].initial = self.instance.city.name
+
+    def clean(self):
+        """Общая валидация формы"""
+        cleaned_data = super().clean()
+
+        # Проверяем, что выбран существующий город
+        city_search = cleaned_data.get("city_search")
+        city_id = cleaned_data.get("city")
+
+        if city_search and not city_id:
+            try:
+                city = City.objects.get(name=city_search)
+                cleaned_data["city"] = city
+            except City.DoesNotExist:
+                self.add_error("city_search", "Выберите город из списка")
+
+        # Можно добавить кросс-полевые проверки если нужно
+        city = cleaned_data.get("city")
+        bio = cleaned_data.get("bio")
+
+        # Пример: если указан город, но нет информации о себе - предупреждение
+        if city and not bio:
+            self.add_warning(
+                "bio",
+                "Рекомендуем добавить информацию о себе для лучшего представления вашего профиля.",
+            )
+
+        return cleaned_data
 
     def clean_avatar(self):
         """Кастомная очистка поля avatar"""
@@ -327,23 +347,6 @@ class ProfileEditForm(forms.ModelForm):
                 raise forms.ValidationError("Размер файла не должен превышать 5MB.")
 
         return avatar
-
-    def clean(self):
-        """Общая валидация формы"""
-        cleaned_data = super().clean()
-
-        # Можно добавить кросс-полевые проверки если нужно
-        city = cleaned_data.get("city")
-        bio = cleaned_data.get("bio")
-
-        # Пример: если указан город, но нет информации о себе - предупреждение
-        if city and not bio:
-            self.add_warning(
-                "bio",
-                "Рекомендуем добавить информацию о себе для лучшего представления вашего профиля.",
-            )
-
-        return cleaned_data
 
     def add_warning(self, field, message):
         """Метод для добавления предупреждений (не ошибок)"""

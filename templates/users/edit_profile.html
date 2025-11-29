@@ -35,20 +35,22 @@
                 <!-- Вкладка "Основная информация" -->
                 <div class="tab-pane fade show active" id="main" role="tabpanel" aria-labelledby="main-tab">
 
-                    <!-- Отображение системных сообщений -->
+                    <!-- Отображение только первого системного сообщения -->
                     {% if messages %}
                     {% for message in messages %}
+                    {% if forloop.first %}
                     <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-4" role="alert">
                         {% if message.tags == 'success' %}✅{% elif message.tags == 'error' %}❌{% else %}ℹ️{% endif %}
                         {{ message }}
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
+                    {% endif %}
                     {% endfor %}
                     {% endif %}
 
                     <div class="card shadow-sm border-0">
                         <div class="card-body p-4">
-                            <form method="post" enctype="multipart/form-data">
+                            <form method="post" enctype="multipart/form-data" id="profile-form">
                                 {% csrf_token %}
 
                                 <div class="row">
@@ -60,10 +62,11 @@
                                                 {% if user.profile.avatar and user.profile.avatar.url %}
                                                 <img src="{{ user.profile.avatar.url }}" class="rounded-circle mb-3"
                                                     alt="Аватар {{ user.email }}"
-                                                    style="width: 150px; height: 150px; object-fit: cover;">
+                                                    style="width: 150px; height: 150px; object-fit: cover;"
+                                                    id="avatar-preview">
                                                 {% else %}
                                                 <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center mb-3 mx-auto"
-                                                    style="width: 150px; height: 150px;">
+                                                    style="width: 150px; height: 150px;" id="default-avatar">
                                                     <span class="text-white" style="font-size: 3rem;">👤</span>
                                                 </div>
                                                 {% endif %}
@@ -71,7 +74,7 @@
 
                                             <h5 class="fw-bold">{{ user.email }}</h5>
                                             {% if user.profile.city %}
-                                            <p class="text-muted mb-3">📍 {{ user.profile.city }}</p>
+                                            <p class="text-muted mb-3">📍 {{ user.profile.city.name }}</p>
                                             {% else %}
                                             <p class="text-muted mb-3">📍 Город не указан</p>
                                             {% endif %}
@@ -90,7 +93,8 @@
                                                     {% if user.profile.avatar and user.profile.avatar.url %}
                                                     <!-- Для существующего аватара -->
                                                     <div class="existing-avatar">
-                                                        <div class="d-flex flex-column align-items-center gap-2 mb-2">
+                                                        <div class="d-flex flex-column align-items-center gap-2 mb-2"
+                                                            id="avatar-buttons">
                                                             <button type="button"
                                                                 class="btn btn-outline-primary btn-sm replace-avatar-btn">
                                                                 📁 Заменить аватар
@@ -146,21 +150,28 @@
                                                 {% endif %}
                                             </div>
 
-                                            <!-- Город с выбором -->
+                                            <!-- Город с автодополнением -->
                                             <div class="col-12 mb-3">
-                                                <label for="{{ profile_form.city.id_for_label }}"
+                                                <label for="{{ profile_form.city_search.id_for_label }}"
                                                     class="form-label fw-bold">
                                                     🏙️ Город
                                                 </label>
+                                                {{ profile_form.city_search }}
+                                                <!-- Скрытое поле для хранения ID города -->
                                                 {{ profile_form.city }}
-                                                {% if profile_form.city.errors %}
+                                                <!-- Datalist для автодополнения -->
+                                                <datalist id="cities-datalist">
+                                                    {% for city in cities %}
+                                                    <option value="{{ city.name }}">{{ city.name }}</option>
+                                                    {% endfor %}
+                                                </datalist>
+                                                {% if profile_form.city_search.errors %}
                                                 <div class="text-danger small mt-1">
-                                                    {{ profile_form.city.errors.0 }}
+                                                    {{ profile_form.city_search.errors.0 }}
                                                 </div>
                                                 {% endif %}
                                                 <div class="form-text">
-                                                    Укажите город для лучшего поиска товаров. Только кириллические
-                                                    буквы, пробелы и дефисы.
+                                                    Начните вводить название города и выберите из списка
                                                 </div>
                                             </div>
 
@@ -323,7 +334,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Счетчик символов для поля "О себе" - исправленная версия
+        // Счетчик символов для поля "О себе"
         const bioField = document.getElementById('{{ profile_form.bio.id_for_label }}');
         const bioCounter = document.getElementById('bio-counter');
 
@@ -334,6 +345,7 @@
 
                 if (remaining < 0) {
                     bioCounter.classList.add('counter-warning');
+                    bioCounter.textContent = `-${Math.abs(remaining)}`;
                 } else {
                     bioCounter.classList.remove('counter-warning');
                 }
@@ -348,14 +360,18 @@
         const removeAvatarBtn = document.querySelector('.remove-avatar-btn');
         const avatarUploadField = document.querySelector('.avatar-upload-field');
         const avatarClearInput = document.getElementById('avatar-clear');
-        const avatarDisplay = document.querySelector('.rounded-circle[alt*="Аватар"]');
-        const defaultAvatar = document.querySelector('.rounded-circle.bg-secondary');
+        const avatarPreview = document.getElementById('avatar-preview');
+        const defaultAvatar = document.getElementById('default-avatar');
+        const avatarButtons = document.getElementById('avatar-buttons');
 
         if (replaceAvatarBtn) {
             replaceAvatarBtn.addEventListener('click', function () {
-                avatarUploadField.style.display = 'block';
-                this.style.display = 'none';
-                removeAvatarBtn.style.display = 'none';
+                if (avatarUploadField) {
+                    avatarUploadField.style.display = 'block';
+                }
+                if (avatarButtons) {
+                    avatarButtons.style.display = 'none';
+                }
                 // Сбрасываем флаг удаления при замене
                 if (avatarClearInput) {
                     avatarClearInput.value = 'false';
@@ -366,19 +382,22 @@
         if (removeAvatarBtn) {
             removeAvatarBtn.addEventListener('click', function () {
                 // Устанавливаем флаг для удаления аватара
-                avatarClearInput.value = 'true';
+                if (avatarClearInput) {
+                    avatarClearInput.value = 'true';
+                }
 
                 // Скрываем текущий аватар и показываем заглушку
-                if (avatarDisplay) {
-                    avatarDisplay.style.display = 'none';
+                if (avatarPreview) {
+                    avatarPreview.style.display = 'none';
                 }
                 if (defaultAvatar) {
                     defaultAvatar.style.display = 'flex';
                 }
 
                 // Скрываем кнопки
-                replaceAvatarBtn.style.display = 'none';
-                removeAvatarBtn.style.display = 'none';
+                if (avatarButtons) {
+                    avatarButtons.style.display = 'none';
+                }
 
                 // Скрываем поле загрузки, если оно было открыто
                 if (avatarUploadField) {
@@ -421,12 +440,12 @@
 
                     const reader = new FileReader();
                     reader.onload = function (e) {
-                        if (avatarDisplay) {
-                            avatarDisplay.src = e.target.result;
-                            avatarDisplay.style.display = 'block';
-                            if (defaultAvatar) {
-                                defaultAvatar.style.display = 'none';
-                            }
+                        if (avatarPreview) {
+                            avatarPreview.src = e.target.result;
+                            avatarPreview.style.display = 'block';
+                        }
+                        if (defaultAvatar) {
+                            defaultAvatar.style.display = 'none';
                         }
                     };
                     reader.readAsDataURL(file);
@@ -434,8 +453,21 @@
             });
         }
 
+        // Автодополнение для городов
+        const citySearchInput = document.getElementById('{{ profile_form.city_search.id_for_label }}');
+        const cityHiddenInput = document.getElementById('{{ profile_form.city.id_for_label }}');
+
+        if (citySearchInput && cityHiddenInput) {
+            // При выборе из datalist обновляем скрытое поле
+            citySearchInput.addEventListener('input', function () {
+                const selectedCity = this.value;
+                // Здесь можно добавить логику для поиска ID города по названию
+                // Пока оставим пустым, так как основная логика будет на стороне сервера
+            });
+        }
+
         // Обработка отправки формы - дополнительная проверка
-        const form = document.querySelector('form');
+        const form = document.getElementById('profile-form');
         if (form) {
             form.addEventListener('submit', function (e) {
                 // Проверяем, не превышено ли количество символов в поле "О себе"
@@ -446,21 +478,20 @@
                     return false;
                 }
 
-                // Проверяем валидность города (кириллица)
-                const cityField = document.getElementById('{{ profile_form.city.id_for_label }}');
-                if (cityField && cityField.value.trim() !== '') {
-                    const cityValue = cityField.value.trim();
-                    const cyrillicRegex = /^[а-яА-ЯёЁ\s\-]+$/;
-                    if (!cyrillicRegex.test(cityValue)) {
-                        e.preventDefault();
-                        alert('Город должен содержать только кириллические буквы, пробелы и дефисы.');
-                        cityField.focus();
-                        return false;
-                    }
-                }
                 return true;
             });
         }
+
+        // Автоматическое скрытие alert через 5 секунд
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => {
+            setTimeout(() => {
+                if (alert && alert.classList.contains('show')) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 5000);
+        });
     });
 </script>
 {% endblock %}
