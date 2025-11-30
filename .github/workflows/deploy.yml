@@ -118,46 +118,24 @@ jobs:
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Free ports and stop conflicting services
+      - name: Ensure ports are free
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🔧 Freeing ports and stopping conflicting services..."
+            echo "🔧 Ensuring ports 80 and 443 are free..."
             
-            # Останавливаем системные сервисы которые могут занимать порты
-            systemctl stop nginx 2>/dev/null || true
-            systemctl disable nginx 2>/dev/null || true
-            systemctl stop apache2 2>/dev/null || true
-            systemctl disable apache2 2>/dev/null || true
+            # Простая проверка и очистка портов
+            echo "Checking port status:"
+            netstat -tulpn | grep -E ':(80|443)' || echo "Ports are free"
             
-            # Убиваем процессы на портах 80 и 443
-            echo "Killing processes on ports 80 and 443..."
-            pkill -f "nginx" || true
-            pkill -f "apache" || true
+            # Останавливаем только системные сервисы (без убийства процессов)
+            systemctl stop nginx 2>/dev/null || echo "nginx was not running"
+            systemctl stop apache2 2>/dev/null || echo "apache2 was not running"
             
-            # Используем fuser для освобождения портов
-            if command -v fuser > /dev/null; then
-              fuser -k 80/tcp 2>/dev/null || true
-              fuser -k 443/tcp 2>/dev/null || true
-            fi
-            
-            # Используем lsof если доступен
-            if command -v lsof > /dev/null; then
-              lsof -ti:80 | xargs -r kill -9 2>/dev/null || true
-              lsof -ti:443 | xargs -r kill -9 2>/dev/null || true
-            fi
-            
-            # Ждем освобождения портов
-            sleep 3
-            
-            # Проверяем что порты свободны
-            echo "Port status after cleanup:"
-            netstat -tulpn | grep -E ':(80|443)' && echo "⚠️  Ports might still be occupied" || echo "✅ Ports are free"
-            
-            echo "✅ Port cleanup completed"
+            echo "✅ Port check completed"
 
       - name: Deploy application first (without nginx)
         uses: appleboy/ssh-action@master
