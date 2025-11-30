@@ -46,12 +46,13 @@ services:
     container_name: handmade_nginx
     ports:
       - "80:80"
-      - "443:443"   # Добавляем HTTPS порт
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - static_volume:/app/staticfiles
       - media_volume:/app/media
-      - /etc/letsencrypt:/etc/letsencrypt:ro   # Монтируем SSL сертификаты
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot   # Добавляем для webroot метода
     depends_on:
       - web
     restart: unless-stopped
@@ -62,6 +63,7 @@ volumes:
   postgres_data:
   static_volume:
   media_volume:
+  certbot_webroot:   # Добавляем новый volume для Certbot
 
 networks:
   backend:

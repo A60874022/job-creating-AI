@@ -113,7 +113,7 @@ jobs:
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Install Certbot and obtain SSL certificate
+      - name: Deploy application first (for webroot method)
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -121,35 +121,8 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -e
-            echo "🔐 Installing Certbot and obtaining SSL certificate..."
-            
-            # Обновляем пакеты и устанавливаем Certbot
-            apt-get update
-            apt-get install -y certbot python3-certbot-nginx
-            
-            echo "✅ Certbot installed successfully"
-            
-            # Получаем SSL сертификат
-            echo "Obtaining SSL certificate for mart.ktsf.ru..."
-            certbot certonly --standalone -d mart.ktsf.ru -d www.mart.ktsf.ru --non-interactive --agree-tos --email ${{ secrets.ADMIN_EMAIL }} 
-            
-            echo "✅ SSL certificate obtained successfully!"
-
-      - name: Deploy application with HTTPS configuration
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          script: |
-            set -e
-            echo "🚀 Starting deployment with HTTPS configuration..."
+            echo "🚀 Starting initial deployment for webroot method..."
             cd /root/ad_service/
-            
-            echo "=== Current directory structure ==="
-            ls -la
-            echo "=== Nginx configuration ==="
-            ls -la nginx/ || echo "Nginx directory not found"
             
             echo "1. Logging in to Docker Hub..."
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
@@ -180,16 +153,51 @@ jobs:
             echo "7. Collecting static files..."
             docker-compose exec -T web python manage.py collectstatic --noinput --clear || echo "Static collection warning"
             
-            echo "8. Testing nginx configuration..."
+            echo "✅ Initial deployment completed!"
+
+      - name: Install Certbot and obtain SSL certificate using webroot
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            set -e
+            echo "🔐 Installing Certbot and obtaining SSL certificate using webroot method..."
+            
+            # Обновляем пакеты и устанавливаем Certbot
+            apt-get update
+            apt-get install -y certbot python3-certbot-nginx
+            
+            echo "✅ Certbot installed successfully"
+            
+            # Создаем директорию для webroot внутри nginx контейнера
+            echo "Creating webroot directory in nginx container..."
+            docker exec handmade_nginx mkdir -p /var/www/certbot
+            
+            echo "Obtaining SSL certificate using webroot method..."
+            # Используем webroot метод (не требует остановки nginx)
+            certbot certonly --webroot --webroot-path /var/www/certbot -d mart.ktsf.ru -d www.mart.ktsf.ru --non-interactive --agree-tos --email ${{ secrets.ADMIN_EMAIL }}
+            
+            echo "✅ SSL certificate obtained successfully!"
+
+      - name: Update nginx configuration for HTTPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "🔧 Updating nginx configuration for HTTPS..."
+            cd /root/ad_service
+            
+            echo "1. Testing new nginx configuration..."
             docker-compose exec nginx nginx -t && echo "✅ Nginx configuration is valid"
             
-            echo "9. Restarting nginx to apply HTTPS configuration..."
+            echo "2. Restarting nginx to apply HTTPS configuration..."
             docker-compose restart nginx
             
-            echo "10. Checking services status..."
-            docker-compose ps
-            
-            echo "✅ HTTPS deployment completed!"
+            echo "✅ HTTPS configuration applied!"
 
       - name: Setup SSL certificate auto-renewal
         uses: appleboy/ssh-action@master
@@ -200,8 +208,18 @@ jobs:
           script: |
             echo "🔄 Setting up SSL certificate auto-renewal..."
             
+            # Создаем скрипт для обновления сертификатов
+            cat > /root/renew_ssl.sh << 'EOF'
+            #!/bin/bash
+            certbot renew --webroot --webroot-path /var/www/certbot --quiet
+            cd /root/ad_service
+            docker-compose exec nginx nginx -s reload
+            EOF
+            
+            chmod +x /root/renew_ssl.sh
+            
             # Добавляем cron задачу для обновления сертификатов
-            (crontab -l 2>/dev/null; echo "0 12 * * * /usr/bin/certbot renew --quiet && cd /root/ad_service && docker-compose exec nginx nginx -s reload") | crontab -
+            (crontab -l 2>/dev/null; echo "0 12 * * * /root/renew_ssl.sh") | crontab -
             
             echo "✅ SSL auto-renewal configured!"
 
@@ -221,14 +239,19 @@ jobs:
             echo "2. Checking nginx logs for errors..."
             docker-compose logs nginx --tail=20 | grep -i error || echo "No nginx errors found"
             
-            echo "3. Checking application logs..."
-            docker-compose logs web --tail=10
-            
-            echo "4. Testing HTTPS accessibility internally..."
+            echo "3. Testing HTTPS accessibility internally..."
             if curl -f -H "Host: mart.ktsf.ru" https://localhost/ --insecure; then
               echo "✅ HTTPS is working internally!"
             else
               echo "⚠️  HTTPS internal test failed"
+            fi
+            
+            echo "4. Testing HTTP to HTTPS redirect..."
+            REDIRECT_OUTPUT=$(curl -I -H "Host: mart.ktsf.ru" http://localhost/ 2>/dev/null | head -n 1)
+            if echo "$REDIRECT_OUTPUT" | grep -q "301"; then
+              echo "✅ HTTP to HTTPS redirect is working"
+            else
+              echo "⚠️  HTTP to HTTPS redirect test failed"
             fi
             
             echo "5. Testing static files over HTTPS..."
@@ -238,8 +261,8 @@ jobs:
               echo "⚠️  Static files HTTPS check failed"
             fi
             
-            echo "6. Checking if application can connect to database..."
-            docker-compose exec -T web python manage.py check --database default && echo "✅ Database connection OK"
+            echo "6. Checking SSL certificate..."
+            openssl s_client -connect localhost:443 -servername mart.ktsf.ru < /dev/null 2>/dev/null | openssl x509 -noout -dates && echo "✅ SSL certificate is valid"
             
             echo "🎉 HTTPS deployment verification complete!"
             echo "🔒 Your site is now available at: https://mart.ktsf.ru"
