@@ -1,4 +1,4 @@
-name: Deploy Ad Service
+name: Deploy Ad Service with SSL
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
           tags: anton60874022/ad_service:latest
 
   deploy:
-    name: Deploy to Server
+    name: Deploy to Server with SSL
     runs-on: ubuntu-latest
     needs: build_and_push
     steps:
@@ -46,13 +46,11 @@ jobs:
           script: |
             echo "📦 Installing Docker Compose..."
             
-            # Проверяем, установлен ли уже docker compose
             if command -v docker-compose &> /dev/null; then
               echo "✅ Docker Compose already installed"
               docker-compose --version
             else
               echo "Installing Docker Compose..."
-              # Скачиваем и устанавливаем Docker Compose
               curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
               chmod +x /usr/local/bin/docker-compose
               ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
@@ -70,29 +68,23 @@ jobs:
             echo "🧹 Cleaning server (preserving database)..."
             cd /root
             
-            # Останавливаем контейнеры если есть (сохраняем тома)
             if [ -d "ad_service" ]; then
               cd ad_service
               docker-compose down || true
             fi
             
-            # Удаляем только контейнеры приложения, НЕ тома БД
             echo "Removing application containers..."
             docker ps -a | grep -E "(handmade_web|handmade_nginx|redis)" | awk '{print $1}' | xargs -r docker rm -f || true
             
-            # Удаляем образы приложения, но не postgres
             echo "Remaining application images..."
             docker images | grep -E "(ad_service|anton60874022)" | awk '{print $3}' | xargs -r docker rmi -f || true
             
-            # Очищаем неиспользуемые ресурсы, но сохраняем тома
             echo "Cleaning unused Docker resources..."
             docker system prune -f || true
             
-            # Проверяем что том БД существует
             echo "Checking database volume..."
             docker volume ls | grep postgres_data || echo "Database volume not found (will be created)"
             
-            # Очищаем и пересоздаем папку проекта (тома БД сохраняются автоматически)
             echo "Recreating project directory..."
             rm -rf /root/ad_service
             mkdir -p /root/ad_service/nginx
@@ -121,7 +113,7 @@ jobs:
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Deploy application with domain configuration
+      - name: Install Certbot and obtain SSL certificate
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -129,7 +121,29 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -e
-            echo "🚀 Starting deployment with domain configuration..."
+            echo "🔐 Installing Certbot and obtaining SSL certificate..."
+            
+            # Обновляем пакеты и устанавливаем Certbot
+            apt-get update
+            apt-get install -y certbot python3-certbot-nginx
+            
+            echo "✅ Certbot installed successfully"
+            
+            # Получаем SSL сертификат
+            echo "Obtaining SSL certificate for mart.ktsf.ru..."
+            certbot certonly --standalone -d mart.ktsf.ru -d www.mart.ktsf.ru --non-interactive --agree-tos --email ${{ secrets.ADMIN_EMAIL }} 
+            
+            echo "✅ SSL certificate obtained successfully!"
+
+      - name: Deploy application with HTTPS configuration
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            set -e
+            echo "🚀 Starting deployment with HTTPS configuration..."
             cd /root/ad_service/
             
             echo "=== Current directory structure ==="
@@ -140,17 +154,13 @@ jobs:
             echo "1. Logging in to Docker Hub..."
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
             
-            echo "2. Testing nginx configuration syntax..."
-            docker-compose exec nginx nginx -t || echo "Nginx test will be done after start"
-            
-            echo "3. Pulling latest application image..."
+            echo "2. Pulling latest application image..."
             docker pull anton60874022/ad_service:latest
             
-            echo "4. Starting containers (database volume will be reused)..."
+            echo "3. Starting containers (database volume will be reused)..."
             docker-compose up -d
             
-            echo "5. Waiting for database to be ready..."
-            # Ждем пока PostgreSQL будет готов принимать подключения
+            echo "4. Waiting for database to be ready..."
             for i in {1..30}; do
               if docker-compose exec -T db pg_isready -U postgres; then
                 echo "✅ Database is ready!"
@@ -161,34 +171,48 @@ jobs:
               fi
             done
             
-            echo "6. Waiting for application to start..."
+            echo "5. Waiting for application to start..."
             sleep 20
             
-            echo "7. Running migrations..."
+            echo "6. Running migrations..."
             docker-compose exec -T web python manage.py migrate --noinput
             
-            echo "8. Collecting static files..."
+            echo "7. Collecting static files..."
             docker-compose exec -T web python manage.py collectstatic --noinput --clear || echo "Static collection warning"
             
-            echo "9. Testing nginx configuration..."
+            echo "8. Testing nginx configuration..."
             docker-compose exec nginx nginx -t && echo "✅ Nginx configuration is valid"
             
-            echo "10. Restarting nginx to apply domain configuration..."
+            echo "9. Restarting nginx to apply HTTPS configuration..."
             docker-compose restart nginx
             
-            echo "11. Checking services status..."
+            echo "10. Checking services status..."
             docker-compose ps
             
-            echo "✅ Deployment with domain configuration completed!"
+            echo "✅ HTTPS deployment completed!"
 
-      - name: Verify domain deployment
+      - name: Setup SSL certificate auto-renewal
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🔍 Domain deployment verification..."
+            echo "🔄 Setting up SSL certificate auto-renewal..."
+            
+            # Добавляем cron задачу для обновления сертификатов
+            (crontab -l 2>/dev/null; echo "0 12 * * * /usr/bin/certbot renew --quiet && cd /root/ad_service && docker-compose exec nginx nginx -s reload") | crontab -
+            
+            echo "✅ SSL auto-renewal configured!"
+
+      - name: Verify HTTPS deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "🔍 HTTPS deployment verification..."
             cd /root/ad_service/
             
             echo "1. Container status:"
@@ -200,38 +224,29 @@ jobs:
             echo "3. Checking application logs..."
             docker-compose logs web --tail=10
             
-            echo "4. Testing domain accessibility (mart.ktsf.ru)..."
-            # Тестируем с правильным Host header
-            if curl -f -H "Host: mart.ktsf.ru" http://localhost/; then
-              echo "✅ Domain mart.ktsf.ru is accessible via Host header"
+            echo "4. Testing HTTPS accessibility internally..."
+            if curl -f -H "Host: mart.ktsf.ru" https://localhost/ --insecure; then
+              echo "✅ HTTPS is working internally!"
             else
-              echo "⚠️  Domain test via Host header failed, checking direct access..."
-              curl -f http://localhost/ || echo "Direct access also failed"
+              echo "⚠️  HTTPS internal test failed"
             fi
             
-            echo "5. Testing static files..."
-            if curl -f -H "Host: mart.ktsf.ru" http://localhost/static/admin/css/base.css > /dev/null 2>&1; then
-              echo "✅ Static files are serving correctly"
+            echo "5. Testing static files over HTTPS..."
+            if curl -f -H "Host: mart.ktsf.ru" https://localhost/static/admin/css/base.css --insecure > /dev/null 2>&1; then
+              echo "✅ Static files are serving correctly over HTTPS"
             else
-              echo "⚠️  Static files check failed"
+              echo "⚠️  Static files HTTPS check failed"
             fi
             
-            echo "6. Testing media files configuration..."
-            if curl -f -H "Host: mart.ktsf.ru" http://localhost/media/ > /dev/null 2>&1; then
-              echo "✅ Media URL is configured"
-            else
-              echo "ℹ️  Media URL check (expected 404 for directory listing)"
-            fi
-            
-            echo "7. Checking if application can connect to database..."
+            echo "6. Checking if application can connect to database..."
             docker-compose exec -T web python manage.py check --database default && echo "✅ Database connection OK"
             
-            echo "🎉 Domain deployment verification complete!"
-            echo "🌐 Your site should now be available at: http://mart.ktsf.ru"
+            echo "🎉 HTTPS deployment verification complete!"
+            echo "🔒 Your site is now available at: https://mart.ktsf.ru"
 
-      - name: Final domain test from runner
+      - name: Final HTTPS test from runner
         run: |
-          echo "🔍 Testing domain from GitHub runner..."
+          echo "🔍 Testing HTTPS from GitHub runner..."
           echo "Note: This test might fail if DNS hasn't propagated yet"
           sleep 10
-          curl -f http://mart.ktsf.ru/ && echo "✅ Domain is accessible from internet" || echo "⚠️  Domain might not be accessible yet (DNS propagation)"
+          curl -f https://mart.ktsf.ru/ && echo "✅ HTTPS domain is accessible from internet" || echo "⚠️  Domain might not be accessible yet (DNS propagation)"
