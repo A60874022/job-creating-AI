@@ -18,31 +18,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Security settings
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-fallback-key-for-dev")
 DEBUG = True  # os.environ.get("DEBUG", "False").lower() == "true"
-ALLOWED_HOSTS = [
-    'mart.ktsf.ru',
-    'www.mart.ktsf.ru',
-    '185.185.142.249',  # оставляем IP на всякий случай
-    'localhost',
-    '127.0.0.1',
-    'web'  # имя контейнера
-]
+ALLOWED_HOSTS = ["*"]
 
-
-# Security settings for production
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SECURE_HSTS_SECONDS = 31536000
-SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-SECURE_HSTS_PRELOAD = True
-
-# CSRF trusted origins
-CSRF_TRUSTED_ORIGINS = [
-    'https://mart.ktsf.ru',
-    'https://www.mart.ktsf.ru',
-]
 # Application definition
 INSTALLED_APPS = [
     "daphne",
