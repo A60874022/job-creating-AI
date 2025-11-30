@@ -27,15 +27,22 @@ ALLOWED_HOSTS = [
     'web'  # имя контейнера
 ]
 
-# Добавьте настройки для CSRF
-CSRF_TRUSTED_ORIGINS = [
-    'http://mart.ktsf.ru',
-    'https://mart.ktsf.ru',
-    'http://www.mart.ktsf.ru',
-    'https://www.mart.ktsf.ru',
-    'http://185.185.142.249',
-]
 
+# Security settings for production
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+
+# CSRF trusted origins
+CSRF_TRUSTED_ORIGINS = [
+    'https://mart.ktsf.ru',
+    'https://www.mart.ktsf.ru',
+]
 # Application definition
 INSTALLED_APPS = [
     "daphne",

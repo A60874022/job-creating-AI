@@ -11,7 +11,8 @@ services:
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
-      - ./logs:/app/logs  
+      - ./logs:/app/logs
+      - certbot_www:/var/www/certbot:ro
     expose:
       - "8000"
     env_file:
@@ -46,13 +47,29 @@ services:
     container_name: handmade_nginx
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - static_volume:/app/staticfiles
       - media_volume:/app/media
+      - certbot_etc:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
     depends_on:
       - web
     restart: unless-stopped
+    networks:
+      - backend
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - certbot_etc:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    command: certonly --webroot -w /var/www/certbot --email anton60874022@mail.ru --agree-tos --no-eff-email -d mart.ktsf.ru -d www.mart.ktsf.ru --force-renewal
+    depends_on:
+      - nginx
+    restart: "no"
     networks:
       - backend
 
@@ -60,6 +77,8 @@ volumes:
   postgres_data:
   static_volume:
   media_volume:
+  certbot_etc:
+  certbot_www:
 
 networks:
   backend:
