@@ -58,6 +58,53 @@ jobs:
               docker-compose --version
             fi
 
+      - name: Ensure ports are free before deployment
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "🔍 Checking and freeing ports 80 and 443..."
+            
+            # Останавливаем системный nginx если запущен
+            if systemctl is-active --quiet nginx; then
+              echo "Stopping system nginx..."
+              systemctl stop nginx
+              systemctl disable nginx
+            fi
+            
+            # Останавливаем apache если запущен
+            if systemctl is-active --quiet apache2; then
+              echo "Stopping system apache2..."
+              systemctl stop apache2
+              systemctl disable apache2
+            fi
+            
+            # Принудительно освобождаем порты
+            echo "Killing processes on ports 80 and 443..."
+            pkill -f nginx || true
+            pkill -f apache || true
+            
+            # Используем fuser для освобождения портов
+            if command -v fuser > /dev/null; then
+              fuser -k 80/tcp || true
+              fuser -k 443/tcp || true
+            fi
+            
+            # Используем lsof если доступен
+            if command -v lsof > /dev/null; then
+              lsof -ti:80 | xargs -r kill -9 || true
+              lsof -ti:443 | xargs -r kill -9 || true
+            fi
+            
+            # Даем системе время на освобождение портов
+            sleep 5
+            
+            # Проверяем что порты свободны
+            echo "Final port status:"
+            netstat -tulpn | grep -E ':(80|443)' && echo "❌ Ports are still occupied!" || echo "✅ Ports are now free"
+
       - name: Clean server and setup directories (preserve DB)
         uses: appleboy/ssh-action@master
         with:
@@ -67,6 +114,11 @@ jobs:
           script: |
             echo "🧹 Cleaning server (preserving database)..."
             cd /root
+            
+            # Останавливаем и удаляем все контейнеры
+            echo "Stopping all Docker containers..."
+            docker stop $(docker ps -aq) 2>/dev/null || true
+            docker rm $(docker ps -aq) 2>/dev/null || true
             
             if [ -d "ad_service" ]; then
               cd ad_service
@@ -211,15 +263,22 @@ jobs:
             # Создаем скрипт для обновления сертификатов
             cat > /root/renew_ssl.sh << 'EOF'
             #!/bin/bash
+            echo "🔐 Renewing SSL certificates..."
             certbot renew --webroot --webroot-path /var/www/certbot --quiet
-            cd /root/ad_service
-            docker-compose exec nginx nginx -s reload
+            if [ $? -eq 0 ]; then
+                echo "✅ SSL certificates renewed successfully"
+                cd /root/ad_service
+                docker-compose exec nginx nginx -s reload
+                echo "✅ Nginx reloaded with new certificates"
+            else
+                echo "❌ SSL certificate renewal failed"
+            fi
             EOF
             
             chmod +x /root/renew_ssl.sh
             
             # Добавляем cron задачу для обновления сертификатов
-            (crontab -l 2>/dev/null; echo "0 12 * * * /root/renew_ssl.sh") | crontab -
+            (crontab -l 2>/dev/null; echo "0 3 * * * /root/renew_ssl.sh >> /var/log/ssl-renewal.log 2>&1") | crontab -
             
             echo "✅ SSL auto-renewal configured!"
 
@@ -262,7 +321,11 @@ jobs:
             fi
             
             echo "6. Checking SSL certificate..."
-            openssl s_client -connect localhost:443 -servername mart.ktsf.ru < /dev/null 2>/dev/null | openssl x509 -noout -dates && echo "✅ SSL certificate is valid"
+            if command -v openssl > /dev/null; then
+              openssl s_client -connect localhost:443 -servername mart.ktsf.ru < /dev/null 2>/dev/null | openssl x509 -noout -dates && echo "✅ SSL certificate is valid"
+            else
+              echo "ℹ️  openssl not available, skipping certificate check"
+            fi
             
             echo "🎉 HTTPS deployment verification complete!"
             echo "🔒 Your site is now available at: https://mart.ktsf.ru"
@@ -272,4 +335,8 @@ jobs:
           echo "🔍 Testing HTTPS from GitHub runner..."
           echo "Note: This test might fail if DNS hasn't propagated yet"
           sleep 10
-          curl -f https://mart.ktsf.ru/ && echo "✅ HTTPS domain is accessible from internet" || echo "⚠️  Domain might not be accessible yet (DNS propagation)"
+          if curl -f https://mart.ktsf.ru/; then
+            echo "✅ HTTPS domain is accessible from internet"
+          else
+            echo "⚠️  Domain might not be accessible yet (DNS propagation or other issues)"
+          fi
