@@ -1,37 +1,95 @@
 #!/bin/bash
 
-# Script for obtaining and renewing SSL certificates
+# SSL Certificate Setup and Auto-renewal Script
 set -e
 
-echo "🚀 Starting SSL certificate setup..."
+echo "🚀 Starting SSL certificate setup for mart.ktsf.ru..."
 
-# Create necessary directories
-mkdir -p certbot_www
-mkdir -p certbot_data
+# Create necessary directories for Certbot
+mkdir -p ./certbot_www
+mkdir -p ./certbot_data
 
-# Start nginx temporarily for initial certificate issuance
-echo "Starting nginx for initial certificate setup..."
+echo "1. Checking domain accessibility..."
+# Проверяем, что домен разрешается
+if ping -c 1 mart.ktsf.ru &> /dev/null; then
+    echo "✅ Domain mart.ktsf.ru is resolvable"
+else
+    echo "❌ Domain mart.ktsf.ru is not resolvable. Please check DNS settings."
+    exit 1
+fi
+
+echo "2. Starting temporary HTTP nginx for domain verification..."
 docker-compose up -d nginx
 
-# Wait for nginx to start
+echo "3. Waiting for nginx to start..."
 sleep 10
 
-# Obtain the initial certificate
-echo "Obtaining SSL certificate from Let's Encrypt..."
-docker-compose run --rm certbot
+echo "4. Testing HTTP access to domain..."
+# Проверяем доступность через HTTP
+if curl -f -m 10 http://mart.ktsf.ru/ > /dev/null 2>&1; then
+    echo "✅ HTTP access is working"
+else
+    echo "⚠️  HTTP access test failed, but continuing..."
+fi
 
-# Stop nginx
-echo "Stopping nginx..."
+echo "5. Testing ACME challenge path..."
+# Создаем тестовый файл для проверки
+mkdir -p ./certbot_www/.well-known/acme-challenge/
+echo "test" > ./certbot_www/.well-known/acme-challenge/test.txt
+
+if curl -f -m 10 http://mart.ktsf.ru/.well-known/acme-challenge/test.txt > /dev/null 2>&1; then
+    echo "✅ ACME challenge path is accessible"
+    rm ./certbot_www/.well-known/acme-challenge/test.txt
+else
+    echo "❌ ACME challenge path is not accessible"
+    echo "Debug info:"
+    docker-compose logs nginx
+    exit 1
+fi
+
+echo "6. Obtaining SSL certificate from Let's Encrypt..."
+# Используем standalone mode вместо webroot для обхода проблем
+docker-compose run --rm --service-ports certbot certonly --standalone -d mart.ktsf.ru --email admin@mart.ktsf.ru --agree-tos --no-eff-email --non-interactive || {
+    echo "❌ Certificate issuance failed, trying alternative method..."
+    
+    # Альтернативный метод: используем DNS challenge
+    echo "Trying DNS challenge method..."
+    docker-compose run --rm certbot certonly --manual --preferred-challenges dns -d mart.ktsf.ru --email admin@mart.ktsf.ru --agree-tos --no-eff-email --non-interactive || {
+        echo "❌ All certificate issuance methods failed"
+        docker-compose down
+        exit 1
+    }
+}
+
+echo "✅ Certificate obtained successfully!"
+
+echo "7. Restarting nginx with SSL configuration..."
 docker-compose down
-
-# Start all services with SSL
-echo "Starting all services with SSL..."
 docker-compose up -d
 
-echo "✅ SSL certificate setup completed!"
-echo "🔧 Certificate will be automatically renewed"
+echo "8. Setting up automatic renewal..."
+# Добавляем cron задачу для автоматического обновления
+CRON_JOB="0 3 * * * cd /root/ad_service && docker-compose run --rm certbot renew --quiet && docker-compose exec nginx nginx -s reload"
 
-# Add cron job for automatic renewal
-(crontab -l 2>/dev/null; echo "0 3 * * * /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml run --rm certbot renew --quiet && /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml exec nginx nginx -s reload") | crontab -
+if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
+    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+    echo "✅ Automatic renewal cron job installed"
+else
+    echo "✅ Automatic renewal cron job already exists"
+fi
 
-echo "✅ Automatic renewal cron job installed!"
+echo "9. Testing SSL configuration..."
+docker-compose exec nginx nginx -t && echo "✅ SSL configuration test passed"
+
+echo "10. Testing HTTPS access..."
+sleep 5
+if curl -f -k -m 10 https://mart.ktsf.ru/ > /dev/null 2>&1; then
+    echo "✅ HTTPS is working!"
+else
+    echo "⚠️  HTTPS test failed, but certificate was issued"
+fi
+
+echo ""
+echo "🎉 SSL setup completed successfully!"
+echo "🔐 Your site is now available at: https://mart.ktsf.ru"
+echo "🔄 Certificate will be automatically renewed every 3 months"

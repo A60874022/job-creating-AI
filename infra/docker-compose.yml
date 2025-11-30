@@ -5,12 +5,10 @@ services:
     image: anton60874022/ad_service:latest
     container_name: handmade_web
     restart: unless-stopped
-    env_file:
-      - .env
+    env_file: .env
     volumes:
       - static_volume:/app/staticfiles
       - media_volume:/app/media
-      - ./logs:/app/logs
     depends_on:
       - db
       - redis
@@ -21,11 +19,9 @@ services:
     image: postgres:15
     container_name: handmade_db
     restart: unless-stopped
-    env_file:
-      - .env
+    env_file: .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres_backups:/backups
     networks:
       - app-network
 
@@ -49,7 +45,6 @@ services:
       - media_volume:/app/media
       - certbot_data:/etc/letsencrypt
       - certbot_www:/var/www/certbot
-      - ./logs/nginx:/var/log/nginx
     depends_on:
       - web
     networks:
@@ -61,7 +56,10 @@ services:
     volumes:
       - certbot_data:/etc/letsencrypt
       - certbot_www:/var/www/certbot
-    command: certonly --webroot -w /var/www/certbot --email admin@mart.ktsf.ru -d mart.ktsf.ru --agree-tos --no-eff-email --force-renewal
+    # Базовая команда - будет переопределена в скрипте
+    command: certonly --standalone -d mart.ktsf.ru --email admin@mart.ktsf.ru --agree-tos --no-eff-email --non-interactive
+    ports:
+      - "80:80"
     networks:
       - app-network
 
