@@ -36,6 +36,7 @@ SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
+
 # Trusted origins for CSRF and redirects
 CSRF_TRUSTED_ORIGINS = [
     'https://mart.ktsf.ru',
