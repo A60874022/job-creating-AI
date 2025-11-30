@@ -37,35 +37,31 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Docker Compose and setup SSL
+      - name: Install Docker Compose on server
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "📦 Setting up Docker Compose and SSL..."
-            
-            # Install Docker Compose if not exists
-            if ! command -v docker-compose &> /dev/null; then
+            echo "📦 Installing Docker Compose..."
+            if command -v docker-compose &> /dev/null; then
+              echo "✅ Docker Compose already installed"
+            else
               curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
               chmod +x /usr/local/bin/docker-compose
               ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+              echo "✅ Docker Compose installed"
             fi
 
-            # Install cron if not exists
-            if ! command -v crontab &> /dev/null; then
-              apt-get update && apt-get install -y cron
-            fi
-
-      - name: Clean and setup project directory
+      - name: Clean server and setup directories
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🧹 Cleaning server (preserving database)..."
+            echo "🧹 Cleaning server..."
             cd /root
             
             if [ -d "ad_service" ]; then
@@ -73,12 +69,10 @@ jobs:
               docker-compose down || true
             fi
             
-            # Clean application containers
             docker ps -a | grep -E "(handmade_web|handmade_nginx|handmade_certbot|redis)" | awk '{print $1}' | xargs -r docker rm -f || true
             docker images | grep -E "(ad_service|anton60874022)" | awk '{print $3}' | xargs -r docker rmi -f || true
             docker system prune -f || true
             
-            # Recreate project directory
             rm -rf /root/ad_service
             mkdir -p /root/ad_service/nginx/conf.d
             mkdir -p /root/ad_service/logs/nginx
@@ -98,19 +92,27 @@ jobs:
           overwrite: true
           strip_components: 1
 
-      - name: Copy SSL scripts and configs
+      - name: Copy SSL script
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          source: 
-            - "certbot-renew.sh"
-            - ".env"
+          source: "certbot-renew.sh"
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Deploy with SSL setup
+      - name: Copy environment file
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: ".env"
+          target: "/root/ad_service/"
+          overwrite: true
+
+      - name: Deploy application with SSL
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -121,46 +123,46 @@ jobs:
             echo "🚀 Starting deployment with SSL..."
             cd /root/ad_service/
             
-            # Make SSL script executable
+            echo "1. Making SSL script executable..."
             chmod +x certbot-renew.sh
             
-            echo "1. Pulling latest images..."
+            echo "2. Pulling latest application image..."
             docker pull anton60874022/ad_service:latest
             
-            echo "2. Starting services without SSL first..."
+            echo "3. Starting database and application..."
             docker-compose up -d db redis web
             
-            echo "3. Setting up SSL certificate..."
+            echo "4. Waiting for services to start..."
+            sleep 15
+            
+            echo "5. Setting up SSL certificate..."
             ./certbot-renew.sh
             
-            echo "4. Running migrations..."
+            echo "6. Running migrations..."
             docker-compose exec -T web python manage.py migrate --noinput
             
-            echo "5. Checking services..."
+            echo "7. Checking services status..."
             docker-compose ps
             
-            echo "✅ Deployment with SSL completed!"
+            echo "✅ Deployment completed! Visit: https://mart.ktsf.ru"
 
-      - name: Verify SSL deployment
+      - name: Verify deployment
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🔍 Verifying SSL deployment..."
+            echo "🔍 Verifying deployment..."
             cd /root/ad_service/
             
             echo "1. Container status:"
             docker-compose ps
             
-            echo "2. Checking SSL certificate..."
-            docker-compose exec -T nginx nginx -t
+            echo "2. Checking SSL configuration..."
+            docker-compose exec nginx nginx -t && echo "✅ SSL configuration is valid"
             
-            echo "3. Testing HTTPS access..."
-            curl -I https://mart.ktsf.ru/ || echo "HTTPS test completed"
+            echo "3. Checking certificate renewal cron job..."
+            crontab -l | grep certbot && echo "✅ Auto-renewal is set up" || echo "⚠️  Auto-renewal not set up"
             
-            echo "4. Checking certificate renewal cron job..."
-            crontab -l | grep certbot || echo "Cron job not found (may need manual setup)"
-            
-            echo "🎉 SSL deployment verification complete!"
+            echo "🎉 Deployment verification complete!"
