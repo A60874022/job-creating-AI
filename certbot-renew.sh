@@ -17,20 +17,35 @@ else
     exit 1
 fi
 
-echo "2. Starting nginx for domain verification..."
+echo "2. Starting all services (waiting for web to be healthy)..."
+docker-compose up -d db redis web
+
+echo "3. Waiting for web service to be healthy..."
+# Ждем пока web сервис станет здоровым
+for i in {1..30}; do
+    if docker-compose ps web | grep -q "(healthy)"; then
+        echo "✅ Web service is healthy!"
+        break
+    else
+        echo "⏳ Waiting for web service to be healthy... ($i/30)"
+        sleep 5
+    fi
+done
+
+echo "4. Starting nginx..."
 docker-compose up -d nginx
 
-echo "3. Waiting for nginx to start..."
+echo "5. Waiting for nginx to start..."
 sleep 10
 
-echo "4. Testing HTTP access to domain..."
+echo "6. Testing HTTP access to domain..."
 if curl -f -m 10 http://mart.ktsf.ru/ > /dev/null 2>&1; then
     echo "✅ HTTP access is working"
 else
     echo "⚠️ HTTP access test failed, but continuing..."
 fi
 
-echo "5. Testing ACME challenge path..."
+echo "7. Testing ACME challenge path..."
 mkdir -p ./certbot_www/.well-known/acme-challenge/
 echo "test" > ./certbot_www/.well-known/acme-challenge/test.txt
 
@@ -43,8 +58,7 @@ else
     exit 1
 fi
 
-echo "6. Obtaining SSL certificate from Let's Encrypt..."
-# Используем webroot метод с правильным путем
+echo "8. Obtaining SSL certificate from Let's Encrypt..."
 docker-compose run --rm certbot certonly \
     --webroot \
     --webroot-path /var/www/certbot \
@@ -59,7 +73,7 @@ docker-compose run --rm certbot certonly \
 
 echo "✅ Certificate obtained successfully!"
 
-echo "7. Setting up automatic renewal..."
+echo "9. Setting up automatic renewal..."
 CRON_JOB="0 3 * * * cd /root/ad_service && docker-compose run --rm certbot renew --quiet && docker-compose exec nginx nginx -s reload"
 
 if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
@@ -69,10 +83,10 @@ else
     echo "✅ Automatic renewal cron job already exists"
 fi
 
-echo "8. Testing SSL configuration..."
+echo "10. Testing SSL configuration..."
 docker-compose exec nginx nginx -t && echo "✅ SSL configuration test passed"
 
-echo "9. Testing HTTPS access..."
+echo "11. Testing HTTPS access..."
 sleep 5
 if curl -f -k -m 10 https://mart.ktsf.ru/ > /dev/null 2>&1; then
     echo "✅ HTTPS is working!"
