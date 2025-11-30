@@ -56,10 +56,8 @@ services:
     volumes:
       - certbot_data:/etc/letsencrypt
       - certbot_www:/var/www/certbot
-    # Базовая команда - будет переопределена в скрипте
-    command: certonly --standalone -d mart.ktsf.ru --email admin@mart.ktsf.ru --agree-tos --no-eff-email --non-interactive
-    ports:
-      - "80:80"
+    command: >
+      bash -c "sleep 5 && certonly --webroot --webroot-path /var/www/certbot -d mart.ktsf.ru --email admin@mart.ktsf.ru --agree-tos --no-eff-email --non-interactive"
     networks:
       - app-network
 

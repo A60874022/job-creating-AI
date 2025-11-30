@@ -9,8 +9,7 @@ echo "🚀 Starting SSL certificate setup for mart.ktsf.ru..."
 mkdir -p ./certbot_www
 mkdir -p ./certbot_data
 
-echo "1. Checking domain accessibility..."
-# Проверяем, что домен разрешается
+echo "1. Testing domain accessibility..."
 if ping -c 1 mart.ktsf.ru &> /dev/null; then
     echo "✅ Domain mart.ktsf.ru is resolvable"
 else
@@ -18,22 +17,20 @@ else
     exit 1
 fi
 
-echo "2. Starting temporary HTTP nginx for domain verification..."
+echo "2. Starting nginx for domain verification..."
 docker-compose up -d nginx
 
 echo "3. Waiting for nginx to start..."
 sleep 10
 
 echo "4. Testing HTTP access to domain..."
-# Проверяем доступность через HTTP
 if curl -f -m 10 http://mart.ktsf.ru/ > /dev/null 2>&1; then
     echo "✅ HTTP access is working"
 else
-    echo "⚠️  HTTP access test failed, but continuing..."
+    echo "⚠️ HTTP access test failed, but continuing..."
 fi
 
 echo "5. Testing ACME challenge path..."
-# Создаем тестовый файл для проверки
 mkdir -p ./certbot_www/.well-known/acme-challenge/
 echo "test" > ./certbot_www/.well-known/acme-challenge/test.txt
 
@@ -42,33 +39,27 @@ if curl -f -m 10 http://mart.ktsf.ru/.well-known/acme-challenge/test.txt > /dev/
     rm ./certbot_www/.well-known/acme-challenge/test.txt
 else
     echo "❌ ACME challenge path is not accessible"
-    echo "Debug info:"
     docker-compose logs nginx
     exit 1
 fi
 
 echo "6. Obtaining SSL certificate from Let's Encrypt..."
-# Используем standalone mode вместо webroot для обхода проблем
-docker-compose run --rm --service-ports certbot certonly --standalone -d mart.ktsf.ru --email admin@mart.ktsf.ru --agree-tos --no-eff-email --non-interactive || {
-    echo "❌ Certificate issuance failed, trying alternative method..."
-    
-    # Альтернативный метод: используем DNS challenge
-    echo "Trying DNS challenge method..."
-    docker-compose run --rm certbot certonly --manual --preferred-challenges dns -d mart.ktsf.ru --email admin@mart.ktsf.ru --agree-tos --no-eff-email --non-interactive || {
-        echo "❌ All certificate issuance methods failed"
-        docker-compose down
-        exit 1
-    }
+# Используем webroot метод с правильным путем
+docker-compose run --rm certbot certonly \
+    --webroot \
+    --webroot-path /var/www/certbot \
+    -d mart.ktsf.ru \
+    --email admin@mart.ktsf.ru \
+    --agree-tos \
+    --no-eff-email \
+    --non-interactive || {
+    echo "❌ Certificate issuance failed"
+    exit 1
 }
 
 echo "✅ Certificate obtained successfully!"
 
-echo "7. Restarting nginx with SSL configuration..."
-docker-compose down
-docker-compose up -d
-
-echo "8. Setting up automatic renewal..."
-# Добавляем cron задачу для автоматического обновления
+echo "7. Setting up automatic renewal..."
 CRON_JOB="0 3 * * * cd /root/ad_service && docker-compose run --rm certbot renew --quiet && docker-compose exec nginx nginx -s reload"
 
 if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
@@ -78,15 +69,15 @@ else
     echo "✅ Automatic renewal cron job already exists"
 fi
 
-echo "9. Testing SSL configuration..."
+echo "8. Testing SSL configuration..."
 docker-compose exec nginx nginx -t && echo "✅ SSL configuration test passed"
 
-echo "10. Testing HTTPS access..."
+echo "9. Testing HTTPS access..."
 sleep 5
 if curl -f -k -m 10 https://mart.ktsf.ru/ > /dev/null 2>&1; then
     echo "✅ HTTPS is working!"
 else
-    echo "⚠️  HTTPS test failed, but certificate was issued"
+    echo "⚠️ HTTPS test failed, but certificate was issued"
 fi
 
 echo ""
