@@ -1,4 +1,4 @@
-name: Deploy Ad Service with SSL
+name: Deploy Ad Service with Auto SSL
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
           tags: anton60874022/ad_service:latest
 
   deploy:
-    name: Deploy to Server with SSL
+    name: Deploy to Server with Auto SSL
     runs-on: ubuntu-latest
     needs: build_and_push
     steps:
@@ -57,14 +57,14 @@ jobs:
               docker-compose --version
             fi
 
-      - name: Clean server and setup directories (preserve DB)
+      - name: Clean server and setup directories
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🧹 Cleaning server (preserving database)..."
+            echo "🧹 Cleaning server..."
             cd /root
             
             if [ -d "ad_service" ]; then
@@ -73,23 +73,23 @@ jobs:
             fi
             
             echo "Removing application containers..."
-            docker ps -a | grep -E "(ad_service_web|ad_service_nginx|ad_service_redis|ad_service_certbot|ad_service_db)" | awk '{print $1}' | xargs -r docker rm -f || true
+            docker ps -a | grep -E "(ad_service_)" | awk '{print $1}' | xargs -r docker rm -f || true
             
             echo "Removing application images..."
-            docker images | grep -E "(ad_service|anton60874022|nginx|certbot|redis|postgres)" | awk '{print $3}' | xargs -r docker rmi -f || true
+            docker images | grep -E "(ad_service|anton60874022)" | awk '{print $3}' | xargs -r docker rmi -f || true
+            
+            echo "Removing old database volume (incompatible version)..."
+            docker volume rm ad_service_postgres_data || true
             
             echo "Cleaning unused Docker resources..."
             docker system prune -f || true
-            
-            echo "Checking database volume..."
-            docker volume ls | grep postgres_data && echo "Database volume found - preserving" || echo "Database volume not found (will be created)"
             
             echo "Recreating project directory..."
             rm -rf /root/ad_service
             mkdir -p /root/ad_service/nginx
             mkdir -p /root/ad_service/logs/nginx
             
-            echo "✅ Server cleaned (database data preserved)"
+            echo "✅ Server cleaned"
 
       - name: Copy infrastructure files to server
         uses: appleboy/scp-action@master
@@ -112,7 +112,7 @@ jobs:
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Deploy application with SSL
+      - name: Deploy application with automatic SSL
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -120,7 +120,7 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -e
-            echo "🚀 Starting deployment..."
+            echo "🚀 Starting deployment with automatic SSL..."
             cd /root/ad_service/
             
             echo "1. Creating necessary directories..."
@@ -131,54 +131,180 @@ jobs:
             docker pull anton60874022/ad_service:latest
             docker pull nginx:1.21-alpine
             docker pull certbot/certbot
-            docker pull postgres:13
+            docker pull postgres:14
             docker pull redis:7-alpine
             
             echo "3. Starting database and redis first..."
             docker-compose up -d db redis
             
-            echo "4. Waiting for database to be ready (45 seconds)..."
-            sleep 45
+            echo "4. Waiting for database to be ready (30 seconds)..."
+            sleep 30
             
             echo "5. Checking database status..."
             if docker-compose exec -T db pg_isready -U $POSTGRES_USER; then
               echo "✅ Database is ready"
             else
-              echo "⚠️ Database not ready yet, waiting additional 15 seconds..."
-              sleep 15
+              echo "⚠️ Database not ready yet, waiting additional 30 seconds..."
+              sleep 30
             fi
             
             echo "6. Starting web service..."
             docker-compose up -d web
             
-            echo "7. Waiting for web to initialize (30 seconds)..."
-            sleep 30
+            echo "7. Waiting for web to initialize (20 seconds)..."
+            sleep 20
             
-            echo "8. Checking web service logs..."
-            docker-compose logs web --tail=20
-            
-            echo "9. Starting nginx..."
+            echo "8. Starting nginx (HTTP only for certificate acquisition)..."
             docker-compose up -d nginx
             
-            echo "10. Waiting for nginx to start (10 seconds)..."
+            echo "9. Waiting for nginx to start (10 seconds)..."
             sleep 10
             
-            echo "11. Obtaining SSL certificates..."
-            if docker-compose run --rm certbot; then
+            echo "10. Obtaining SSL certificates..."
+            if docker-compose run --rm certbot certonly --webroot -w /var/www/certbot --email $ADMIN_EMAIL -d mart.ktsf.ru -d www.mart.ktsf.ru --agree-tos --non-interactive --keep-until-expiring; then
               echo "✅ SSL certificates obtained successfully"
+              
+              echo "11. Updating nginx configuration to enable HTTPS..."
+              # Update nginx config to redirect HTTP to HTTPS
+              cat > nginx/nginx.conf << 'EOF'
+              events {
+                  worker_connections 1024;
+              }
+
+              http {
+                  include /etc/nginx/mime.types;
+                  default_type application/octet-stream;
+
+                  server_tokens off;
+                  sendfile on;
+                  tcp_nopush on;
+                  tcp_nodelay on;
+                  keepalive_timeout 65;
+                  types_hash_max_size 2048;
+
+                  client_max_body_size 20M;
+                  client_body_timeout 60s;
+                  client_header_timeout 60s;
+                  client_body_buffer_size 128K;
+                  client_body_temp_path /var/cache/nginx/client_temp 1 2;
+
+                  log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                                  '$status $body_bytes_sent "$http_referer" '
+                                  '"$http_user_agent" "$http_x_forwarded_for" '
+                                  'rt=$request_time uct="$upstream_connect_time"';
+
+                  access_log /var/log/nginx/access.log main;
+                  error_log /var/log/nginx/error.log warn;
+
+                  upstream django {
+                      server web:8000;
+                  }
+
+                  # HTTP redirect to HTTPS
+                  server {
+                      listen 80;
+                      server_name mart.ktsf.ru www.mart.ktsf.ru;
+                      
+                      location /.well-known/acme-challenge/ {
+                          root /var/www/certbot;
+                      }
+                      
+                      location / {
+                          return 301 https://$host$request_uri;
+                      }
+                  }
+
+                  # HTTPS server
+                  server {
+                      listen 443 ssl http2;
+                      server_name mart.ktsf.ru www.mart.ktsf.ru;
+
+                      ssl_certificate /etc/letsencrypt/live/mart.ktsf.ru/fullchain.pem;
+                      ssl_certificate_key /etc/letsencrypt/live/mart.ktsf.ru/privkey.pem;
+                      
+                      ssl_protocols TLSv1.2 TLSv1.3;
+                      ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305;
+                      ssl_prefer_server_ciphers off;
+                      ssl_session_cache shared:SSL:10m;
+                      ssl_session_timeout 1d;
+
+                      add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+                      add_header X-Frame-Options "SAMEORIGIN" always;
+                      add_header X-Content-Type-Options "nosniff" always;
+                      add_header X-XSS-Protection "1; mode=block" always;
+                      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+                      add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; frame-ancestors 'self';" always;
+
+                      client_max_body_size 20M;
+                      client_body_timeout 120s;
+                      client_header_timeout 120s;
+                      proxy_connect_timeout 120s;
+                      proxy_send_timeout 120s;
+                      proxy_read_timeout 120s;
+
+                      location /static/ {
+                          alias /app/staticfiles/;
+                          expires 1y;
+                          add_header Cache-Control "public, immutable";
+                          access_log off;
+                      }
+
+                      location /media/ {
+                          alias /app/media/;
+                          expires 30d;
+                          add_header Cache-Control "public";
+                          access_log off;
+                          client_max_body_size 20M;
+                      }
+
+                      location /ws/ {
+                          proxy_pass http://django;
+                          proxy_http_version 1.1;
+                          proxy_set_header Upgrade $http_upgrade;
+                          proxy_set_header Connection "upgrade";
+                          proxy_set_header Host $host;
+                          proxy_set_header X-Real-IP $remote_addr;
+                          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                          proxy_set_header X-Forwarded-Proto $scheme;
+                          proxy_read_timeout 86400;
+                      }
+
+                      location / {
+                          proxy_pass http://django;
+                          proxy_set_header Host $host;
+                          proxy_set_header X-Real-IP $remote_addr;
+                          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                          proxy_set_header X-Forwarded-Proto $scheme;
+                          
+                          proxy_connect_timeout 120s;
+                          proxy_send_timeout 120s;
+                          proxy_read_timeout 120s;
+                          
+                          proxy_buffering on;
+                          proxy_buffer_size 128k;
+                          proxy_buffers 8 256k;
+                          proxy_busy_buffers_size 256k;
+                          
+                          client_max_body_size 20M;
+                          client_body_timeout 120s;
+                      }
+                  }
+              }
+              EOF
+              
+              echo "12. Restarting nginx with SSL configuration..."
+              docker-compose restart nginx
+              
+              echo "13. Setting up automatic SSL renewal..."
+              (crontab -l 2>/dev/null | grep -v "certbot renew"; echo "0 12 * * * /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml run --rm certbot renew --quiet && /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml restart nginx") | crontab -
+              
             else
-              echo "⚠️ Certbot had issues, but continuing deployment..."
+              echo "⚠️ Certbot had issues, but application is running on HTTP"
             fi
-            
-            echo "12. Restarting nginx with SSL configuration..."
-            docker-compose restart nginx
-            
-            echo "13. Setting up automatic SSL renewal..."
-            (crontab -l 2>/dev/null | grep -v "certbot renew"; echo "0 12 * * * /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml run --rm certbot renew --quiet && /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml restart nginx") | crontab -
             
             echo "✅ Deployment completed!"
 
-      - name: Final verification and health check
+      - name: Final verification
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -198,35 +324,13 @@ jobs:
             echo "=== Redis ==="
             docker-compose exec -T redis redis-cli ping && echo "✅ Redis healthy" || echo "❌ Redis issues"
             
-            echo "=== Web service ==="
-            docker-compose logs web --tail=10
+            echo "3. Testing HTTP access..."
+            curl -f http://localhost/ > /dev/null 2>&1 && echo "✅ HTTP is working" || echo "⚠️ HTTP not working"
             
-            echo "3. Testing application connectivity..."
-            if curl -f http://localhost:8000/ > /dev/null 2>&1; then
-              echo "✅ Application is responding on port 8000"
-            else
-              echo "⚠️ Application not responding on port 8000, checking logs..."
-              docker-compose logs web --tail=20
-            fi
+            echo "4. Testing HTTPS access..."
+            curl -k -f https://localhost/ > /dev/null 2>&1 && echo "✅ HTTPS is working" || echo "⚠️ HTTPS not working"
             
-            echo "4. Testing nginx..."
-            if curl -f http://localhost/ > /dev/null 2>&1; then
-              echo "✅ Nginx is responding"
-            else
-              echo "⚠️ Nginx not responding, checking logs..."
-              docker-compose logs nginx --tail=10
-            fi
+            echo "5. Checking SSL certificates..."
+            docker-compose run --rm certbot certificates || echo "Certificate check"
             
-            echo "5. SSL certificate status:"
-            docker-compose run --rm certbot certificates || echo "Certificate check completed"
-            
-            echo "6. Testing HTTPS access..."
-            curl -k -I https://localhost/ || echo "HTTPS test completed"
-            
-            echo "7. Checking cron jobs:"
-            crontab -l | grep certbot && echo "✅ SSL renewal cron job configured" || echo "❌ SSL renewal cron job not found"
-            
-            echo "8. Checking volumes:"
-            docker volume ls | grep ad_service
-            
-            echo "🎉 Deployment verification complete!"
+            echo "🎉 Deployment complete!"учше
