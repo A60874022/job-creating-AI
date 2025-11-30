@@ -73,16 +73,16 @@ jobs:
             fi
             
             echo "Removing application containers..."
-            docker ps -a | grep -E "(ad_service_web|ad_service_nginx|ad_service_redis|ad_service_certbot)" | awk '{print $1}' | xargs -r docker rm -f || true
+            docker ps -a | grep -E "(ad_service_web|ad_service_nginx|ad_service_redis|ad_service_certbot|ad_service_db)" | awk '{print $1}' | xargs -r docker rm -f || true
             
             echo "Removing application images..."
-            docker images | grep -E "(ad_service|anton60874022|nginx|certbot)" | awk '{print $3}' | xargs -r docker rmi -f || true
+            docker images | grep -E "(ad_service|anton60874022|nginx|certbot|redis|postgres)" | awk '{print $3}' | xargs -r docker rmi -f || true
             
             echo "Cleaning unused Docker resources..."
             docker system prune -f || true
             
             echo "Checking database volume..."
-            docker volume ls | grep postgres_data || echo "Database volume not found (will be created)"
+            docker volume ls | grep postgres_data && echo "Database volume found - preserving" || echo "Database volume not found (will be created)"
             
             echo "Recreating project directory..."
             rm -rf /root/ad_service
@@ -112,7 +112,7 @@ jobs:
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Setup SSL and deploy application
+      - name: Deploy application with SSL
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -120,10 +120,10 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -e
-            echo "🚀 Starting deployment with SSL setup..."
+            echo "🚀 Starting deployment..."
             cd /root/ad_service/
             
-            echo "1. Creating necessary directories for certbot..."
+            echo "1. Creating necessary directories..."
             mkdir -p nginx/conf.d
             mkdir -p logs/nginx
             
@@ -137,31 +137,48 @@ jobs:
             echo "3. Starting database and redis first..."
             docker-compose up -d db redis
             
-            echo "4. Waiting for database to be ready..."
-            sleep 30
+            echo "4. Waiting for database to be ready (45 seconds)..."
+            sleep 45
             
-            echo "5. Starting web service..."
+            echo "5. Checking database status..."
+            if docker-compose exec -T db pg_isready -U $POSTGRES_USER; then
+              echo "✅ Database is ready"
+            else
+              echo "⚠️ Database not ready yet, waiting additional 15 seconds..."
+              sleep 15
+            fi
+            
+            echo "6. Starting web service..."
             docker-compose up -d web
             
-            echo "6. Waiting for web to initialize..."
-            sleep 20
+            echo "7. Waiting for web to initialize (30 seconds)..."
+            sleep 30
             
-            echo "7. Starting nginx for certificate setup..."
+            echo "8. Checking web service logs..."
+            docker-compose logs web --tail=20
+            
+            echo "9. Starting nginx..."
             docker-compose up -d nginx
             
-            echo "8. Obtaining SSL certificates..."
-            docker-compose run --rm certbot || echo "Certbot execution completed"
+            echo "10. Waiting for nginx to start (10 seconds)..."
+            sleep 10
             
-            echo "9. Restarting all services with proper configuration..."
-            docker-compose down
-            docker-compose up -d
+            echo "11. Obtaining SSL certificates..."
+            if docker-compose run --rm certbot; then
+              echo "✅ SSL certificates obtained successfully"
+            else
+              echo "⚠️ Certbot had issues, but continuing deployment..."
+            fi
             
-            echo "10. Setting up automatic SSL renewal..."
-            (crontab -l 2>/dev/null | grep -v "certbot renew"; echo "0 12 * * * /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml run --rm certbot renew --quiet && /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml exec nginx nginx -s reload") | crontab -
+            echo "12. Restarting nginx with SSL configuration..."
+            docker-compose restart nginx
             
-            echo "✅ SSL deployment completed!"
+            echo "13. Setting up automatic SSL renewal..."
+            (crontab -l 2>/dev/null | grep -v "certbot renew"; echo "0 12 * * * /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml run --rm certbot renew --quiet && /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml restart nginx") | crontab -
+            
+            echo "✅ Deployment completed!"
 
-      - name: Final verification
+      - name: Final verification and health check
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -174,17 +191,42 @@ jobs:
             echo "1. Container status:"
             docker-compose ps
             
-            echo "2. Checking service health..."
-            sleep 10
-            docker-compose logs web --tail=20
+            echo "2. Service health check..."
+            echo "=== Database ==="
+            docker-compose exec -T db pg_isready -U $POSTGRES_USER && echo "✅ Database healthy" || echo "❌ Database issues"
             
-            echo "3. SSL certificate status:"
-            docker-compose run --rm certbot certificates || echo "Checking certificates"
+            echo "=== Redis ==="
+            docker-compose exec -T redis redis-cli ping && echo "✅ Redis healthy" || echo "❌ Redis issues"
             
-            echo "4. Testing HTTPS access..."
-            curl -I https://mart.ktsf.ru/ || echo "HTTPS test completed"
+            echo "=== Web service ==="
+            docker-compose logs web --tail=10
             
-            echo "5. Checking cron jobs:"
-            crontab -l | grep certbot || echo "Cron job for SSL renewal"
+            echo "3. Testing application connectivity..."
+            if curl -f http://localhost:8000/ > /dev/null 2>&1; then
+              echo "✅ Application is responding on port 8000"
+            else
+              echo "⚠️ Application not responding on port 8000, checking logs..."
+              docker-compose logs web --tail=20
+            fi
             
-            echo "🎉 Deployment complete! SSL certificates installed and auto-renewal configured."
+            echo "4. Testing nginx..."
+            if curl -f http://localhost/ > /dev/null 2>&1; then
+              echo "✅ Nginx is responding"
+            else
+              echo "⚠️ Nginx not responding, checking logs..."
+              docker-compose logs nginx --tail=10
+            fi
+            
+            echo "5. SSL certificate status:"
+            docker-compose run --rm certbot certificates || echo "Certificate check completed"
+            
+            echo "6. Testing HTTPS access..."
+            curl -k -I https://localhost/ || echo "HTTPS test completed"
+            
+            echo "7. Checking cron jobs:"
+            crontab -l | grep certbot && echo "✅ SSL renewal cron job configured" || echo "❌ SSL renewal cron job not found"
+            
+            echo "8. Checking volumes:"
+            docker volume ls | grep ad_service
+            
+            echo "🎉 Deployment verification complete!"

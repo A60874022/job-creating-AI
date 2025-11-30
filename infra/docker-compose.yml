@@ -13,10 +13,10 @@ services:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
       start_period: 30s
 
   redis:
@@ -34,12 +34,17 @@ services:
     image: anton60874022/ad_service:latest
     command: >
       sh -c "echo 'Waiting for database...' &&
-             until python -c 'import psycopg2; psycopg2.connect(dbname=\"$$POSTGRES_DB\", user=\"$$POSTGRES_USER\", password=\"$$POSTGRES_PASSWORD\", host=\"db\")' 2>/dev/null; do
-               echo 'Database not ready, waiting...';
+             for i in $$(seq 1 30); do
+               if python -c 'import psycopg2; psycopg2.connect(dbname=\"$$POSTGRES_DB\", user=\"$$POSTGRES_USER\", password=\"$$POSTGRES_PASSWORD\", host=\"db\", connect_timeout=3)' 2>/dev/null; then
+                 echo 'Database ready!';
+                 break;
+               fi;
+               echo 'Database not ready, waiting... ($$i/30)';
                sleep 5;
              done &&
-             echo 'Database ready!' &&
+             echo 'Running migrations...' &&
              python manage.py migrate --noinput &&
+             echo 'Collecting static files...' &&
              python manage.py collectstatic --noinput &&
              echo 'Starting server...' &&
              daphne -b 0.0.0.0 -p 8000 ad_service.asgi:application"
@@ -60,10 +65,8 @@ services:
       - EMAIL_HOST_USER=${EMAIL_HOST_USER}
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - db
+      - redis
     networks:
       - app-network
     restart: unless-stopped
@@ -91,8 +94,6 @@ services:
       - certbot_etc:/etc/letsencrypt
       - certbot_www:/var/www/certbot
     command: certonly --webroot -w /var/www/certbot --email ${ADMIN_EMAIL} -d mart.ktsf.ru -d www.mart.ktsf.ru --agree-tos --non-interactive --keep-until-expiring
-    depends_on:
-      - nginx
     networks:
       - app-network
     restart: unless-stopped
