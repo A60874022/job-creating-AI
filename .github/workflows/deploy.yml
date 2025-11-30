@@ -73,7 +73,7 @@ jobs:
             fi
             
             echo "Removing application containers..."
-            docker ps -a | grep -E "(handmade_web|handmade_nginx|redis|certbot)" | awk '{print $1}' | xargs -r docker rm -f || true
+            docker ps -a | grep -E "(ad_service)" | awk '{print $1}' | xargs -r docker rm -f || true
             
             echo "Removing application images..."
             docker images | grep -E "(ad_service|anton60874022|nginx|certbot)" | awk '{print $3}' | xargs -r docker rmi -f || true
@@ -83,6 +83,9 @@ jobs:
             
             echo "Checking database volume..."
             docker volume ls | grep postgres_data || echo "Database volume not found (will be created)"
+            
+            echo "Removing old network..."
+            docker network rm ad_service_network || true
             
             echo "Recreating project directory..."
             rm -rf /root/ad_service
@@ -97,10 +100,19 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          source: "infra/"
+          source: "docker-compose.yml"
           target: "/root/ad_service/"
           overwrite: true
-          strip_components: 1
+
+      - name: Copy nginx config to server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          source: "nginx/nginx.conf"
+          target: "/root/ad_service/nginx/"
+          overwrite: true
 
       - name: Copy .env to server
         uses: appleboy/scp-action@master
@@ -131,172 +143,37 @@ jobs:
             docker pull anton60874022/ad_service:latest
             docker pull nginx:1.21-alpine
             docker pull certbot/certbot
+            docker pull postgres:13
+            docker pull redis:7-alpine
             
-            echo "3. Starting initial setup without SSL to get certificates..."
-            # Сначала запускаем nginx на порту 80 для получения сертификатов
-            docker-compose up -d db redis web nginx
+            echo "3. Starting database and redis first..."
+            docker-compose up -d db redis
             
-            echo "4. Waiting for services to start..."
+            echo "4. Waiting for database to be ready..."
             sleep 30
             
-            echo "5. Obtaining SSL certificates..."
+            echo "5. Starting web service..."
+            docker-compose up -d web
+            
+            echo "6. Waiting for web service to initialize..."
+            sleep 20
+            
+            echo "7. Starting nginx for certificate generation..."
+            docker-compose up -d nginx
+            
+            echo "8. Obtaining SSL certificates..."
             docker-compose run --rm certbot || echo "Certbot execution completed"
             
-            echo "6. Updating nginx configuration for SSL..."
-            # Копируем SSL конфиг nginx
-            cp nginx/nginx.conf nginx/nginx.conf.backup
-            cat > nginx/nginx.conf << 'EOF'
-            events {
-                worker_connections 1024;
-            }
-
-            http {
-                include /etc/nginx/mime.types;
-                default_type application/octet-stream;
-
-                server_tokens off;
-                sendfile on;
-                tcp_nopush on;
-                tcp_nodelay on;
-                keepalive_timeout 65;
-                types_hash_max_size 2048;
-
-                client_max_body_size 20M;
-                client_body_timeout 60s;
-                client_header_timeout 60s;
-                client_body_buffer_size 128K;
-                client_body_temp_path /var/cache/nginx/client_temp 1 2;
-
-                log_format main '$remote_addr - $remote_user [$time_local] "$request" '
-                                '$status $body_bytes_sent "$http_referer" '
-                                '"$http_user_agent" "$http_x_forwarded_for" '
-                                'rt=$request_time uct="$upstream_connect_time"';
-
-                access_log /var/log/nginx/access.log main;
-                error_log /var/log/nginx/error.log warn;
-
-                upstream django {
-                    server web:8000;
-                }
-
-                server {
-                    listen 80;
-                    server_name mart.ktsf.ru www.mart.ktsf.ru;
-                    
-                    location /.well-known/acme-challenge/ {
-                        root /var/www/certbot;
-                    }
-                    
-                    location / {
-                        return 301 https://$host$request_uri;
-                    }
-                }
-
-                server {
-                    listen 443 ssl http2;
-                    server_name mart.ktsf.ru www.mart.ktsf.ru;
-
-                    ssl_certificate /etc/letsencrypt/live/mart.ktsf.ru/fullchain.pem;
-                    ssl_certificate_key /etc/letsencrypt/live/mart.ktsf.ru/privkey.pem;
-                    
-                    ssl_protocols TLSv1.2 TLSv1.3;
-                    ssl_ciphers ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-CHACHA20-POLY1305;
-                    ssl_prefer_server_ciphers off;
-                    ssl_session_cache shared:SSL:10m;
-                    ssl_session_timeout 1d;
-
-                    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
-                    add_header X-Frame-Options "SAMEORIGIN" always;
-                    add_header X-Content-Type-Options "nosniff" always;
-                    add_header X-XSS-Protection "1; mode=block" always;
-                    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-                    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self'; frame-ancestors 'self';" always;
-
-                    client_max_body_size 20M;
-                    client_body_timeout 120s;
-                    client_header_timeout 120s;
-                    proxy_connect_timeout 120s;
-                    proxy_send_timeout 120s;
-                    proxy_read_timeout 120s;
-
-                    location /static/ {
-                        alias /app/staticfiles/;
-                        expires 1y;
-                        add_header Cache-Control "public, immutable";
-                        access_log off;
-                    }
-
-                    location /media/ {
-                        alias /app/media/;
-                        expires 30d;
-                        add_header Cache-Control "public";
-                        access_log off;
-                        client_max_body_size 20M;
-                    }
-
-                    location /ws/ {
-                        proxy_pass http://django;
-                        proxy_http_version 1.1;
-                        proxy_set_header Upgrade $http_upgrade;
-                        proxy_set_header Connection "upgrade";
-                        proxy_set_header Host $host;
-                        proxy_set_header X-Real-IP $remote_addr;
-                        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                        proxy_set_header X-Forwarded-Proto $scheme;
-                        proxy_read_timeout 86400;
-                    }
-
-                    location / {
-                        proxy_pass http://django;
-                        proxy_set_header Host $host;
-                        proxy_set_header X-Real-IP $remote_addr;
-                        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                        proxy_set_header X-Forwarded-Proto $scheme;
-                        
-                        proxy_connect_timeout 120s;
-                        proxy_send_timeout 120s;
-                        proxy_read_timeout 120s;
-                        
-                        proxy_buffering on;
-                        proxy_buffer_size 128k;
-                        proxy_buffers 8 256k;
-                        proxy_busy_buffers_size 256k;
-                        
-                        client_max_body_size 20M;
-                        client_body_timeout 120s;
-                    }
-
-                    location /catalog/add/ {
-                        proxy_pass http://django;
-                        proxy_set_header Host $host;
-                        proxy_set_header X-Real-IP $remote_addr;
-                        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                        proxy_set_header X-Forwarded-Proto $scheme;
-                        
-                        client_max_body_size 20M;
-                        client_body_timeout 300s;
-                        proxy_connect_timeout 300s;
-                        proxy_send_timeout 300s;
-                        proxy_read_timeout 300s;
-                        
-                        proxy_buffering on;
-                        proxy_buffer_size 128k;
-                        proxy_buffers 8 256k;
-                        proxy_busy_buffers_size 256k;
-                    }
-                }
-            }
-            EOF
-            
-            echo "7. Restarting nginx with SSL configuration..."
+            echo "9. Restarting nginx with SSL configuration..."
             docker-compose down
+            sleep 5
             docker-compose up -d
             
-            echo "8. Setting up automatic SSL renewal..."
+            echo "10. Setting up automatic SSL renewal..."
             # Добавляем cron job для автоматического обновления сертификатов
             (crontab -l 2>/dev/null | grep -v "certbot renew"; echo "0 12 * * * /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml run --rm certbot renew --quiet && /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml exec nginx nginx -s reload") | crontab -
             
-            echo "9. Waiting for final startup..."
+            echo "11. Waiting for final startup..."
             sleep 20
             
             echo "✅ SSL deployment completed!"
@@ -314,13 +191,19 @@ jobs:
             echo "1. Container status:"
             docker-compose ps
             
-            echo "2. SSL certificate status:"
+            echo "2. Checking network connectivity..."
+            docker-compose exec web ping -c 2 db || echo "Ping test"
+            
+            echo "3. SSL certificate status:"
             docker-compose run --rm certbot certificates || echo "Checking certificates"
             
-            echo "3. Testing HTTPS access..."
+            echo "4. Testing HTTPS access..."
             curl -I https://mart.ktsf.ru/ || echo "HTTPS test completed"
             
-            echo "4. Checking cron jobs:"
+            echo "5. Checking cron jobs:"
             crontab -l | grep certbot || echo "Cron job for SSL renewal"
+            
+            echo "6. Checking logs..."
+            docker-compose logs web --tail=20
             
             echo "🎉 Deployment complete! SSL certificates installed and auto-renewal configured."

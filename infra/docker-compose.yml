@@ -3,6 +3,7 @@ version: '3.8'
 services:
   db:
     image: postgres:13
+    container_name: ad_service_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -10,13 +11,23 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     networks:
-      - app-network
+      app-network:
+        aliases:
+          - db
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   web:
     image: anton60874022/ad_service:latest
+    container_name: ad_service_web
     command: >
-      sh -c "python manage.py migrate --noinput &&
+      sh -c "echo 'Waiting for database...' &&
+             sleep 10 &&
+             python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
              daphne -b 0.0.0.0 -p 8000 ad_service.asgi:application"
     volumes:
@@ -36,20 +47,24 @@ services:
       - EMAIL_HOST_USER=${EMAIL_HOST_USER}
       - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD}
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
+    container_name: ad_service_redis
     networks:
       - app-network
     restart: unless-stopped
 
   nginx:
     image: nginx:1.21-alpine
+    container_name: ad_service_nginx
     ports:
       - "80:80"
       - "443:443"
@@ -67,13 +82,16 @@ services:
 
   certbot:
     image: certbot/certbot
+    container_name: ad_service_certbot
     volumes:
       - certbot_etc:/etc/letsencrypt
       - certbot_www:/var/www/certbot
     command: certonly --webroot -w /var/www/certbot --email ${ADMIN_EMAIL} -d mart.ktsf.ru -d www.mart.ktsf.ru --agree-tos --non-interactive --keep-until-expiring
+    depends_on:
+      - nginx
     networks:
       - app-network
-    restart: unless-stopped
+    restart: no
 
 volumes:
   postgres_data:
@@ -85,3 +103,4 @@ volumes:
 networks:
   app-network:
     driver: bridge
+    name: ad_service_network
