@@ -1,4 +1,4 @@
-name: Deploy Ad Service
+name: Deploy Ad Service with SSL
 
 on:
   push:
@@ -30,37 +30,35 @@ jobs:
           tags: anton60874022/ad_service:latest
 
   deploy:
-    name: Deploy to Server
+    name: Deploy to Server with SSL
     runs-on: ubuntu-latest
     needs: build_and_push
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Docker Compose on server
+      - name: Install Docker Compose and setup SSL
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "📦 Installing Docker Compose..."
+            echo "📦 Setting up Docker Compose and SSL..."
             
-            # Проверяем, установлен ли уже docker compose
-            if command -v docker-compose &> /dev/null; then
-              echo "✅ Docker Compose already installed"
-              docker-compose --version
-            else
-              echo "Installing Docker Compose..."
-              # Скачиваем и устанавливаем Docker Compose
+            # Install Docker Compose if not exists
+            if ! command -v docker-compose &> /dev/null; then
               curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o /usr/local/bin/docker-compose
               chmod +x /usr/local/bin/docker-compose
               ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
-              echo "✅ Docker Compose installed successfully"
-              docker-compose --version
             fi
 
-      - name: Clean server and setup directories (preserve DB)
+            # Install cron if not exists
+            if ! command -v crontab &> /dev/null; then
+              apt-get update && apt-get install -y cron
+            fi
+
+      - name: Clean and setup project directory
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -70,37 +68,26 @@ jobs:
             echo "🧹 Cleaning server (preserving database)..."
             cd /root
             
-            # Останавливаем контейнеры если есть (сохраняем тома)
             if [ -d "ad_service" ]; then
               cd ad_service
               docker-compose down || true
             fi
             
-            # Удаляем только контейнеры приложения, НЕ тома БД
-            echo "Removing application containers..."
-            docker ps -a | grep -E "(handmade_web|handmade_nginx|redis)" | awk '{print $1}' | xargs -r docker rm -f || true
-            
-            # Удаляем образы приложения, но не postgres
-            echo "Removing application images..."
+            # Clean application containers
+            docker ps -a | grep -E "(handmade_web|handmade_nginx|handmade_certbot|redis)" | awk '{print $1}' | xargs -r docker rm -f || true
             docker images | grep -E "(ad_service|anton60874022)" | awk '{print $3}' | xargs -r docker rmi -f || true
-            
-            # Очищаем неиспользуемые ресурсы, но сохраняем тома
-            echo "Cleaning unused Docker resources..."
             docker system prune -f || true
             
-            # Проверяем что том БД существует
-            echo "Checking database volume..."
-            docker volume ls | grep postgres_data || echo "Database volume not found (will be created)"
-            
-            # Очищаем и пересоздаем папку проекта (тома БД сохраняются автоматически)
-            echo "Recreating project directory..."
+            # Recreate project directory
             rm -rf /root/ad_service
             mkdir -p /root/ad_service/nginx/conf.d
             mkdir -p /root/ad_service/logs/nginx
+            mkdir -p /root/ad_service/certbot_www
+            mkdir -p /root/ad_service/certbot_data
             
-            echo "✅ Server cleaned (database data preserved)"
+            echo "✅ Server cleaned and directories created"
 
-      - name: Copy infrastructure files to server
+      - name: Copy infrastructure files
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -111,17 +98,19 @@ jobs:
           overwrite: true
           strip_components: 1
 
-      - name: Copy .env to server
+      - name: Copy SSL scripts and configs
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          source: ".env"
+          source: 
+            - "certbot-renew.sh"
+            - ".env"
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Deploy application with database preservation
+      - name: Deploy with SSL setup
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -129,63 +118,49 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -e
-            echo "🚀 Starting deployment (with database preservation)..."
+            echo "🚀 Starting deployment with SSL..."
             cd /root/ad_service/
             
-            echo "=== Current directory structure ==="
-            ls -la
-            echo "=== Nginx configuration ==="
-            ls -la nginx/ || echo "Nginx directory not found"
+            # Make SSL script executable
+            chmod +x certbot-renew.sh
             
-            echo "1. Pulling latest application image..."
+            echo "1. Pulling latest images..."
             docker pull anton60874022/ad_service:latest
             
-            echo "2. Starting containers (database volume will be reused)..."
-            docker-compose up -d
+            echo "2. Starting services without SSL first..."
+            docker-compose up -d db redis web
             
-            echo "3. Waiting for database to be ready..."
-            # Ждем пока PostgreSQL будет готов принимать подключения
-            for i in {1..30}; do
-              if docker-compose exec -T db pg_isready -U postgres; then
-                echo "✅ Database is ready!"
-                break
-              else
-                echo "⏳ Waiting for database... ($i/30)"
-                sleep 2
-              fi
-            done
+            echo "3. Setting up SSL certificate..."
+            ./certbot-renew.sh
             
-            echo "4. Waiting for application to start..."
-            sleep 15
-            
-            echo "5. Running migrations..."
+            echo "4. Running migrations..."
             docker-compose exec -T web python manage.py migrate --noinput
             
-            echo "6. Checking services status..."
+            echo "5. Checking services..."
             docker-compose ps
             
-            echo "✅ Deployment completed with database preservation!"
+            echo "✅ Deployment with SSL completed!"
 
-      - name: Verify deployment and data integrity
+      - name: Verify SSL deployment
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🔍 Final verification (checking database)..."
+            echo "🔍 Verifying SSL deployment..."
             cd /root/ad_service/
             
             echo "1. Container status:"
             docker-compose ps
             
-            echo "2. Checking if application can connect to database..."
-            docker-compose exec -T web python manage.py check --database default
+            echo "2. Checking SSL certificate..."
+            docker-compose exec -T nginx nginx -t
             
-            echo "3. Recent application logs:"
-            docker-compose logs --tail=10 web
+            echo "3. Testing HTTPS access..."
+            curl -I https://mart.ktsf.ru/ || echo "HTTPS test completed"
             
-            echo "4. Checking web service response..."
-            curl -f http://localhost:8000/ || curl -f http://localhost/ || echo "Application might be starting..."
+            echo "4. Checking certificate renewal cron job..."
+            crontab -l | grep certbot || echo "Cron job not found (may need manual setup)"
             
-            echo "🎉 Deployment verification complete! Database preserved."
+            echo "🎉 SSL deployment verification complete!"

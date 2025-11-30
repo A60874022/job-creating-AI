@@ -19,7 +19,21 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-fallback-key-for-dev")
 DEBUG = True  # os.environ.get("DEBUG", "False").lower() == "true"
 ALLOWED_HOSTS = ["*"]
-
+# settings.py - обновите security settings
+if DEBUG:
+    # Security settings for production with SSL
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    
+    # Update allowed hosts
+    ALLOWED_HOSTS = ['mart.ktsf.ru', 'www.mart.ktsf.ru']
 # Application definition
 INSTALLED_APPS = [
     "daphne",
