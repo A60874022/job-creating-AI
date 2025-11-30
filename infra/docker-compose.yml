@@ -3,7 +3,6 @@ version: '3.8'
 services:
   db:
     image: postgres:13
-    container_name: ad_service_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -11,24 +10,38 @@ services:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     networks:
-      app-network:
-        aliases:
-          - db
+      - app-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   web:
     image: anton60874022/ad_service:latest
-    container_name: ad_service_web
     command: >
       sh -c "echo 'Waiting for database...' &&
-             sleep 10 &&
+             until python -c 'import psycopg2; psycopg2.connect(dbname=\"$$POSTGRES_DB\", user=\"$$POSTGRES_USER\", password=\"$$POSTGRES_PASSWORD\", host=\"db\")' 2>/dev/null; do
+               echo 'Database not ready, waiting...';
+               sleep 5;
+             done &&
+             echo 'Database ready!' &&
              python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
+             echo 'Starting server...' &&
              daphne -b 0.0.0.0 -p 8000 ad_service.asgi:application"
     volumes:
       - static_volume:/app/staticfiles
@@ -50,21 +63,13 @@ services:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    container_name: ad_service_redis
+        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
 
   nginx:
     image: nginx:1.21-alpine
-    container_name: ad_service_nginx
     ports:
       - "80:80"
       - "443:443"
@@ -82,7 +87,6 @@ services:
 
   certbot:
     image: certbot/certbot
-    container_name: ad_service_certbot
     volumes:
       - certbot_etc:/etc/letsencrypt
       - certbot_www:/var/www/certbot
@@ -91,7 +95,7 @@ services:
       - nginx
     networks:
       - app-network
-    restart: no
+    restart: unless-stopped
 
 volumes:
   postgres_data:
@@ -103,4 +107,3 @@ volumes:
 networks:
   app-network:
     driver: bridge
-    name: ad_service_network

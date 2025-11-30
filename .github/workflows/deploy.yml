@@ -73,7 +73,7 @@ jobs:
             fi
             
             echo "Removing application containers..."
-            docker ps -a | grep -E "(ad_service)" | awk '{print $1}' | xargs -r docker rm -f || true
+            docker ps -a | grep -E "(ad_service_web|ad_service_nginx|ad_service_redis|ad_service_certbot)" | awk '{print $1}' | xargs -r docker rm -f || true
             
             echo "Removing application images..."
             docker images | grep -E "(ad_service|anton60874022|nginx|certbot)" | awk '{print $3}' | xargs -r docker rmi -f || true
@@ -83,9 +83,6 @@ jobs:
             
             echo "Checking database volume..."
             docker volume ls | grep postgres_data || echo "Database volume not found (will be created)"
-            
-            echo "Removing old network..."
-            docker network rm ad_service_network || true
             
             echo "Recreating project directory..."
             rm -rf /root/ad_service
@@ -100,19 +97,10 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
-          source: "docker-compose.yml"
+          source: "infra/"
           target: "/root/ad_service/"
           overwrite: true
-
-      - name: Copy nginx config to server
-        uses: appleboy/scp-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          source: "nginx/nginx.conf"
-          target: "/root/ad_service/nginx/"
-          overwrite: true
+          strip_components: 1
 
       - name: Copy .env to server
         uses: appleboy/scp-action@master
@@ -155,26 +143,21 @@ jobs:
             echo "5. Starting web service..."
             docker-compose up -d web
             
-            echo "6. Waiting for web service to initialize..."
+            echo "6. Waiting for web to initialize..."
             sleep 20
             
-            echo "7. Starting nginx for certificate generation..."
+            echo "7. Starting nginx for certificate setup..."
             docker-compose up -d nginx
             
             echo "8. Obtaining SSL certificates..."
             docker-compose run --rm certbot || echo "Certbot execution completed"
             
-            echo "9. Restarting nginx with SSL configuration..."
+            echo "9. Restarting all services with proper configuration..."
             docker-compose down
-            sleep 5
             docker-compose up -d
             
             echo "10. Setting up automatic SSL renewal..."
-            # Добавляем cron job для автоматического обновления сертификатов
             (crontab -l 2>/dev/null | grep -v "certbot renew"; echo "0 12 * * * /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml run --rm certbot renew --quiet && /usr/bin/docker-compose -f /root/ad_service/docker-compose.yml exec nginx nginx -s reload") | crontab -
-            
-            echo "11. Waiting for final startup..."
-            sleep 20
             
             echo "✅ SSL deployment completed!"
 
@@ -191,8 +174,9 @@ jobs:
             echo "1. Container status:"
             docker-compose ps
             
-            echo "2. Checking network connectivity..."
-            docker-compose exec web ping -c 2 db || echo "Ping test"
+            echo "2. Checking service health..."
+            sleep 10
+            docker-compose logs web --tail=20
             
             echo "3. SSL certificate status:"
             docker-compose run --rm certbot certificates || echo "Checking certificates"
@@ -202,8 +186,5 @@ jobs:
             
             echo "5. Checking cron jobs:"
             crontab -l | grep certbot || echo "Cron job for SSL renewal"
-            
-            echo "6. Checking logs..."
-            docker-compose logs web --tail=20
             
             echo "🎉 Deployment complete! SSL certificates installed and auto-renewal configured."
