@@ -58,53 +58,6 @@ jobs:
               docker-compose --version
             fi
 
-      - name: Ensure ports are free before deployment
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          script: |
-            echo "🔍 Checking and freeing ports 80 and 443..."
-            
-            # Останавливаем системный nginx если запущен
-            if systemctl is-active --quiet nginx; then
-              echo "Stopping system nginx..."
-              systemctl stop nginx
-              systemctl disable nginx
-            fi
-            
-            # Останавливаем apache если запущен
-            if systemctl is-active --quiet apache2; then
-              echo "Stopping system apache2..."
-              systemctl stop apache2
-              systemctl disable apache2
-            fi
-            
-            # Принудительно освобождаем порты
-            echo "Killing processes on ports 80 and 443..."
-            pkill -f nginx || true
-            pkill -f apache || true
-            
-            # Используем fuser для освобождения портов
-            if command -v fuser > /dev/null; then
-              fuser -k 80/tcp || true
-              fuser -k 443/tcp || true
-            fi
-            
-            # Используем lsof если доступен
-            if command -v lsof > /dev/null; then
-              lsof -ti:80 | xargs -r kill -9 || true
-              lsof -ti:443 | xargs -r kill -9 || true
-            fi
-            
-            # Даем системе время на освобождение портов
-            sleep 5
-            
-            # Проверяем что порты свободны
-            echo "Final port status:"
-            netstat -tulpn | grep -E ':(80|443)' && echo "❌ Ports are still occupied!" || echo "✅ Ports are now free"
-
       - name: Clean server and setup directories (preserve DB)
         uses: appleboy/ssh-action@master
         with:
@@ -165,7 +118,48 @@ jobs:
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Deploy application first (for webroot method)
+      - name: Free ports and stop conflicting services
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "🔧 Freeing ports and stopping conflicting services..."
+            
+            # Останавливаем системные сервисы которые могут занимать порты
+            systemctl stop nginx 2>/dev/null || true
+            systemctl disable nginx 2>/dev/null || true
+            systemctl stop apache2 2>/dev/null || true
+            systemctl disable apache2 2>/dev/null || true
+            
+            # Убиваем процессы на портах 80 и 443
+            echo "Killing processes on ports 80 and 443..."
+            pkill -f "nginx" || true
+            pkill -f "apache" || true
+            
+            # Используем fuser для освобождения портов
+            if command -v fuser > /dev/null; then
+              fuser -k 80/tcp 2>/dev/null || true
+              fuser -k 443/tcp 2>/dev/null || true
+            fi
+            
+            # Используем lsof если доступен
+            if command -v lsof > /dev/null; then
+              lsof -ti:80 | xargs -r kill -9 2>/dev/null || true
+              lsof -ti:443 | xargs -r kill -9 2>/dev/null || true
+            fi
+            
+            # Ждем освобождения портов
+            sleep 3
+            
+            # Проверяем что порты свободны
+            echo "Port status after cleanup:"
+            netstat -tulpn | grep -E ':(80|443)' && echo "⚠️  Ports might still be occupied" || echo "✅ Ports are free"
+            
+            echo "✅ Port cleanup completed"
+
+      - name: Deploy application first (without nginx)
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -173,7 +167,7 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -e
-            echo "🚀 Starting initial deployment for webroot method..."
+            echo "🚀 Starting initial deployment (without nginx)..."
             cd /root/ad_service/
             
             echo "1. Logging in to Docker Hub..."
@@ -182,8 +176,9 @@ jobs:
             echo "2. Pulling latest application image..."
             docker pull anton60874022/ad_service:latest
             
-            echo "3. Starting containers (database volume will be reused)..."
-            docker-compose up -d
+            echo "3. Starting containers without nginx..."
+            # Запускаем все сервисы кроме nginx сначала
+            docker-compose up -d db redis web
             
             echo "4. Waiting for database to be ready..."
             for i in {1..30}; do
@@ -197,7 +192,7 @@ jobs:
             done
             
             echo "5. Waiting for application to start..."
-            sleep 20
+            sleep 15
             
             echo "6. Running migrations..."
             docker-compose exec -T web python manage.py migrate --noinput
@@ -207,7 +202,7 @@ jobs:
             
             echo "✅ Initial deployment completed!"
 
-      - name: Install Certbot and obtain SSL certificate using webroot
+      - name: Install Certbot and obtain SSL certificate using standalone
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -215,41 +210,44 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -e
-            echo "🔐 Installing Certbot and obtaining SSL certificate using webroot method..."
+            echo "🔐 Installing Certbot and obtaining SSL certificate..."
             
             # Обновляем пакеты и устанавливаем Certbot
             apt-get update
-            apt-get install -y certbot python3-certbot-nginx
+            apt-get install -y certbot
             
             echo "✅ Certbot installed successfully"
             
-            # Создаем директорию для webroot внутри nginx контейнера
-            echo "Creating webroot directory in nginx container..."
-            docker exec handmade_nginx mkdir -p /var/www/certbot
-            
-            echo "Obtaining SSL certificate using webroot method..."
-            # Используем webroot метод (не требует остановки nginx)
-            certbot certonly --webroot --webroot-path /var/www/certbot -d mart.ktsf.ru -d www.mart.ktsf.ru --non-interactive --agree-tos --email ${{ secrets.ADMIN_EMAIL }}
+            echo "Obtaining SSL certificate using standalone method..."
+            # Получаем SSL сертификат (порт 80 должен быть свободен)
+            certbot certonly --standalone -d mart.ktsf.ru -d www.mart.ktsf.ru --non-interactive --agree-tos --email ${{ secrets.ADMIN_EMAIL }}
             
             echo "✅ SSL certificate obtained successfully!"
 
-      - name: Update nginx configuration for HTTPS
+      - name: Deploy nginx with SSL configuration
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🔧 Updating nginx configuration for HTTPS..."
-            cd /root/ad_service
+            set -e
+            echo "🚀 Deploying nginx with SSL configuration..."
+            cd /root/ad_service/
             
-            echo "1. Testing new nginx configuration..."
+            echo "1. Starting nginx container..."
+            docker-compose up -d nginx
+            
+            echo "2. Waiting for nginx to start..."
+            sleep 5
+            
+            echo "3. Testing nginx configuration..."
             docker-compose exec nginx nginx -t && echo "✅ Nginx configuration is valid"
             
-            echo "2. Restarting nginx to apply HTTPS configuration..."
-            docker-compose restart nginx
+            echo "4. Checking all services status..."
+            docker-compose ps
             
-            echo "✅ HTTPS configuration applied!"
+            echo "✅ Nginx deployment completed!"
 
       - name: Setup SSL certificate auto-renewal
         uses: appleboy/ssh-action@master
@@ -263,15 +261,22 @@ jobs:
             # Создаем скрипт для обновления сертификатов
             cat > /root/renew_ssl.sh << 'EOF'
             #!/bin/bash
-            echo "🔐 Renewing SSL certificates..."
-            certbot renew --webroot --webroot-path /var/www/certbot --quiet
-            if [ $? -eq 0 ]; then
-                echo "✅ SSL certificates renewed successfully"
-                cd /root/ad_service
-                docker-compose exec nginx nginx -s reload
-                echo "✅ Nginx reloaded with new certificates"
+            echo "$(date): Starting SSL certificate renewal..."
+            
+            # Останавливаем nginx временно
+            cd /root/ad_service
+            docker-compose stop nginx
+            
+            # Обновляем сертификаты
+            if certbot renew --standalone --non-interactive; then
+                echo "SSL certificates renewed successfully"
+                # Запускаем nginx обратно
+                docker-compose start nginx
+                echo "Nginx restarted with new certificates"
             else
-                echo "❌ SSL certificate renewal failed"
+                echo "SSL certificate renewal failed"
+                # В любом случае запускаем nginx обратно
+                docker-compose start nginx
             fi
             EOF
             
