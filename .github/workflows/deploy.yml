@@ -81,7 +81,7 @@ jobs:
             docker ps -a | grep -E "(handmade_web|handmade_nginx|redis)" | awk '{print $1}' | xargs -r docker rm -f || true
             
             # Удаляем образы приложения, но не postgres
-            echo "Removing application images..."
+            echo "Remaining application images..."
             docker images | grep -E "(ad_service|anton60874022)" | awk '{print $3}' | xargs -r docker rmi -f || true
             
             # Очищаем неиспользуемые ресурсы, но сохраняем тома
@@ -137,16 +137,19 @@ jobs:
             echo "=== Nginx configuration ==="
             ls -la nginx/ || echo "Nginx directory not found"
             
-            echo "1. Testing nginx configuration syntax..."
+            echo "1. Logging in to Docker Hub..."
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+            
+            echo "2. Testing nginx configuration syntax..."
             docker-compose exec nginx nginx -t || echo "Nginx test will be done after start"
             
-            echo "2. Pulling latest application image..."
+            echo "3. Pulling latest application image..."
             docker pull anton60874022/ad_service:latest
             
-            echo "3. Starting containers (database volume will be reused)..."
+            echo "4. Starting containers (database volume will be reused)..."
             docker-compose up -d
             
-            echo "4. Waiting for database to be ready..."
+            echo "5. Waiting for database to be ready..."
             # Ждем пока PostgreSQL будет готов принимать подключения
             for i in {1..30}; do
               if docker-compose exec -T db pg_isready -U postgres; then
@@ -158,22 +161,22 @@ jobs:
               fi
             done
             
-            echo "5. Waiting for application to start..."
+            echo "6. Waiting for application to start..."
             sleep 20
             
-            echo "6. Running migrations..."
+            echo "7. Running migrations..."
             docker-compose exec -T web python manage.py migrate --noinput
             
-            echo "7. Collecting static files..."
+            echo "8. Collecting static files..."
             docker-compose exec -T web python manage.py collectstatic --noinput --clear || echo "Static collection warning"
             
-            echo "8. Testing nginx configuration..."
+            echo "9. Testing nginx configuration..."
             docker-compose exec nginx nginx -t && echo "✅ Nginx configuration is valid"
             
-            echo "9. Restarting nginx to apply domain configuration..."
+            echo "10. Restarting nginx to apply domain configuration..."
             docker-compose restart nginx
             
-            echo "10. Checking services status..."
+            echo "11. Checking services status..."
             docker-compose ps
             
             echo "✅ Deployment with domain configuration completed!"
