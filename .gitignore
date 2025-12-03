@@ -55,11 +55,11 @@ MANIFEST
 
 # Virtual Environment
 venv/
-env/
+
 ENV/
-.env/
+
 virtualenv/
-.venv/
+
 
 # OS
 .DS_Store
