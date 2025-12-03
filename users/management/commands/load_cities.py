@@ -1,4 +1,4 @@
-# users/management/commands/load_extended_cities.py
+# users/management/commands/load_cities.py
 from django.core.management.base import BaseCommand
 from users.models import City
 

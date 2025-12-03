@@ -8,6 +8,45 @@
     <title>{% block title %}Handmade Marketplace{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        /* Баннер тестового режима */
+        .test-mode-banner {
+            background: linear-gradient(90deg, #fff3cd, #ffecb5);
+            border-bottom: 2px solid #ffc107;
+            color: #856404;
+            padding: 8px 0;
+            text-align: center;
+            font-weight: 500;
+            position: sticky;
+            top: 0;
+            z-index: 1030;
+        }
+
+        .test-mode-banner a {
+            color: #856404;
+            text-decoration: underline;
+            font-weight: 600;
+        }
+
+        .test-mode-banner a:hover {
+            color: #5a3a00;
+        }
+
+        /* Стили для закрытия баннера */
+        .close-test-banner {
+            background: none;
+            border: none;
+            color: #856404;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0 10px;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+
+        .close-test-banner:hover {
+            opacity: 1;
+        }
+
         .nav-brand {
             font-weight: bold;
             color: #8B4513 !important;
@@ -111,6 +150,15 @@
 </head>
 
 <body>
+    <!-- Баннер тестового режима -->
+    <div class="test-mode-banner" id="testModeBanner">
+        <div class="container d-flex justify-content-between align-items-center">
+            <span>🚧 <strong>Сайт находится в режиме тестирования.</strong> Вы можете ознакомиться с функционалом, но
+                оформление заказов временно недоступно.</span>
+            <button class="close-test-banner" id="closeTestBanner" aria-label="Скрыть уведомление">×</button>
+        </div>
+    </div>
+
     <!-- Навигационная панель -->
     <header>
         <nav class="navbar navbar-expand-lg navbar-light bg-white">
@@ -256,6 +304,28 @@
     <!-- Дополнительные скрипты для улучшения UX -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // Закрытие баннера тестового режима
+            const testBanner = document.getElementById('testModeBanner');
+            const closeButton = document.getElementById('closeTestBanner');
+
+            if (closeButton && testBanner) {
+                closeButton.addEventListener('click', function () {
+                    testBanner.style.display = 'none';
+                    // Сохраняем состояние в localStorage на 24 часа
+                    localStorage.setItem('testBannerClosed', Date.now());
+                });
+
+                // Проверяем, не закрывал ли пользователь баннер ранее
+                const bannerClosedTime = localStorage.getItem('testBannerClosed');
+                if (bannerClosedTime) {
+                    const timeDiff = Date.now() - parseInt(bannerClosedTime);
+                    // Если прошло менее 24 часов, скрываем баннер
+                    if (timeDiff < 24 * 60 * 60 * 1000) {
+                        testBanner.style.display = 'none';
+                    }
+                }
+            }
+
             // Активация всех dropdowns
             var dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'))
             var dropdownList = dropdownElementList.map(function (dropdownToggleEl) {

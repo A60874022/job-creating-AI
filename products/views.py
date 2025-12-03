@@ -209,13 +209,18 @@ class ProductCatalogView(ListView):
                 is_active=True, is_approved=True
             ).select_related(
                 "master", "category", "master__profile__city"
-            )  # Добавляем город
+            )
 
             # Фильтрация по категории
             category_slug = self.request.GET.get("category")
             if category_slug:
-                category = get_object_or_404(Category, slug=category_slug)
-                queryset = queryset.filter(category=category)
+                # НЕ используем get_object_or_404, чтобы не вызывать 404 при некорректной категории
+                try:
+                    category = Category.objects.get(slug=category_slug)
+                    queryset = queryset.filter(category=category)
+                except Category.DoesNotExist:
+                    # Если категория не найдена, просто игнорируем фильтр
+                    pass
 
             # Поиск по названию и описанию
             search_query = self.request.GET.get("q")
@@ -225,7 +230,7 @@ class ProductCatalogView(ListView):
                     | Q(description__icontains=search_query)
                 )
 
-            # ФИЛЬТРАЦИЯ ПО ГОРОДУ - добавляем этот блок
+            # ФИЛЬТРАЦИЯ ПО ГОРОДУ
             city_query = self.request.GET.get("city")
             if city_query:
                 queryset = queryset.filter(
@@ -241,9 +246,11 @@ class ProductCatalogView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
+        # ДОБАВЛЯЕМ КАТЕГОРИИ В КОНТЕКСТ
+        context['categories'] = Category.objects.all().order_by('name')
+
         # Получаем список всех городов, в которых есть активные товары
         from users.models import City
-
         context["cities"] = (
             City.objects.filter(
                 is_active=True,
@@ -254,8 +261,11 @@ class ProductCatalogView(ListView):
             .order_by("name")
         )
 
-        # Передаем выбранный город для отображения в фильтре
-        context["selected_city"] = self.request.GET.get("city", "")
+        # Добавляем информацию об избранных товарах для текущего пользователя
+        if self.request.user.is_authenticated:
+            context['user_favorites'] = self.request.user.favorites.values_list('product_id', flat=True)
+        else:
+            context['user_favorites'] = []
 
         return context
 

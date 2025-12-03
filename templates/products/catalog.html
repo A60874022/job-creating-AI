@@ -79,15 +79,17 @@
                                     {% endfor %}
                                 </select>
                             </div>
+                        </div>
 
-                    <!-- Кнопка сброса фильтров -->
-                    {% if request.GET.q or request.GET.category or request.GET.city %}
-                    <div class="text-center mt-3">
-                        <a href="{% url 'products:catalog' %}" class="btn btn-outline-secondary btn-sm">
-                            🗑️ Сбросить все фильтры
-                        </a>
-                    </div>
-                    {% endif %}
+                        <!-- Кнопка сброса фильтров -->
+                        {% if request.GET.q or request.GET.category or request.GET.city %}
+                        <div class="text-center mt-3">
+                            <a href="{% url 'products:catalog' %}" class="btn btn-outline-secondary btn-sm">
+                                🗑️ Сбросить все фильтры
+                            </a>
+                        </div>
+                        {% endif %}
+                    </form>
                 </div>
             </div>
 
@@ -155,10 +157,17 @@
                                         <i class="bi bi-geo-alt-fill"></i>
                                         <strong>Город:</strong> {{ product.get_city_display }}
                                     </small>
+                                    {% if product.master.username %}
                                     <small class="text-muted">
                                         <i class="bi bi-person-circle"></i>
-                                        {{ product.master.email|truncatechars:15 }}
+                                        {{ product.master.username|truncatechars:15 }}
                                     </small>
+                                    {% else %}
+                                    <small class="text-muted">
+                                        <i class="bi bi-person-circle"></i>
+                                        Мастер
+                                    </small>
+                                    {% endif %}
                                 </div>
                             </div>
 
@@ -654,14 +663,6 @@
 
         if (searchInput && resultsContainer) {
             new ProductAutocomplete(searchInput, resultsContainer);
-
-            // Обработка отправки формы - скрываем результаты
-            const searchForm = document.getElementById('search-form');
-            if (searchForm) {
-                searchForm.addEventListener('submit', function () {
-                    resultsContainer.style.display = 'none';
-                });
-            }
         }
     });
 </script>
