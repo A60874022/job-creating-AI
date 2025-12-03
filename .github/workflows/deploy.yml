@@ -37,6 +37,34 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # === СОЗДАНИЕ .env ФАЙЛА НА GITHUB RUNNER ===
+      - name: Create .env file from secrets
+        run: |
+          echo "🔧 Creating .env file from GitHub Secrets..."
+          cat > .env << EOF
+          # Database
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          DATABASE_URL=postgres://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@db:5432/${{ secrets.POSTGRES_DB }}
+          
+          # Django
+          DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
+          DJANGO_DEBUG=${{ secrets.DJANGO_DEBUG }}
+          DJANGO_ALLOWED_HOSTS=${{ secrets.DJANGO_ALLOWED_HOSTS }}
+          
+          # Redis
+          REDIS_URL=redis://redis:6379/0
+          
+          # Other settings
+          CSRF_TRUSTED_ORIGINS=${{ secrets.CSRF_TRUSTED_ORIGINS }}
+          CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}
+          EOF
+          
+          echo "✅ .env file created"
+          echo "First 3 lines (for verification):"
+          head -3 .env
+
       - name: Install Docker Compose on server
         uses: appleboy/ssh-action@master
         with:
@@ -108,6 +136,7 @@ jobs:
           overwrite: true
           strip_components: 1
 
+      # === ТЕПЕРЬ .env СУЩЕСТВУЕТ И ЕГО МОЖНО СКОПИРОВАТЬ ===
       - name: Copy .env to server
         uses: appleboy/scp-action@master
         with:
