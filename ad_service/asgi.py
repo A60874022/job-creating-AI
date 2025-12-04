@@ -19,7 +19,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "ad_service.settings")
 
 django_asgi_app = get_asgi_application()
 
-# Импортируйте routing здесь, после настройки Django
+
 from chat.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter(
