@@ -42,7 +42,7 @@ jobs:
         run: |
           echo "🔧 Creating .env file from GitHub Secrets..."
           cat > .env << EOF
-          # Django
+          # Django (ИСПРАВЛЕНО: используем правильные имена переменных!)
           SECRET_KEY=${{ secrets.SECRET_KEY }}
           DEBUG=${{ secrets.DEBUG }}
           ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
@@ -57,20 +57,20 @@ jobs:
           # Redis
           REDIS_URL=${{ secrets.REDIS_URL }}
           
-          # Email (Mail.ru)
+          # Email (Mail.ru) - ВАЖНО: используем те же имена, что и в settings.py
           EMAIL_HOST=${{ secrets.EMAIL_HOST }}
           EMAIL_PORT=${{ secrets.EMAIL_PORT }}
           EMAIL_USE_TLS=${{ secrets.EMAIL_USE_TLS }}
           EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
           EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
-          DEFAULT_FROM_EMAIL=${{ secrets.EMAIL_HOST_USER }}
+          DEFAULT_FROM_EMAIL=${{ secrets.EMAIL_HOST_USER }}  # Добавляем это!
           
-          # Security
+          # Security (для продакшена)
           CSRF_TRUSTED_ORIGINS=${{ secrets.CSRF_TRUSTED_ORIGINS }}
           EOF
           
           echo "✅ .env file created"
-          echo "Email settings in .env:"
+          echo "Checking email settings..."
           grep EMAIL .env
 
       - name: Install Docker Compose on server
@@ -94,42 +94,44 @@ jobs:
               docker-compose --version
             fi
 
-      - name: Clean server and setup directories
+      - name: Clean server and setup directories (preserve DB)
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🧹 Cleaning server..."
+            echo "🧹 Cleaning server (preserving database)..."
             cd /root
             
-            # Останавливаем и удаляем старые контейнеры
+            # Останавливаем и удаляем все контейнеры
+            echo "Stopping all Docker containers..."
+            docker stop $(docker ps -aq) 2>/dev/null || true
+            docker rm $(docker ps -aq) 2>/dev/null || true
+            
             if [ -d "ad_service" ]; then
               cd ad_service
-              echo "Stopping existing containers..."
-              docker-compose down 2>/dev/null || true
-              cd ..
+              docker-compose down || true
             fi
             
-            # Удаляем старые контейнеры приложения
             echo "Removing application containers..."
-            docker ps -a | grep -E "(handmade_|ad_service)" | awk '{print $1}' | xargs -r docker rm -f 2>/dev/null || true
+            docker ps -a | grep -E "(handmade_web|handmade_nginx|redis)" | awk '{print $1}' | xargs -r docker rm -f || true
             
-            # Удаляем старые образы приложения
-            echo "Removing application images..."
-            docker images | grep -E "(ad_service|anton60874022)" | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
+            echo "Remaining application images..."
+            docker images | grep -E "(ad_service|anton60874022)" | awk '{print $3}' | xargs -r docker rmi -f || true
             
-            # Очищаем Docker
-            docker system prune -f 2>/dev/null || true
+            echo "Cleaning unused Docker resources..."
+            docker system prune -f || true
             
-            # Удаляем и создаем директорию заново
+            echo "Checking database volume..."
+            docker volume ls | grep postgres_data || echo "Database volume not found (will be created)"
+            
             echo "Recreating project directory..."
             rm -rf /root/ad_service
             mkdir -p /root/ad_service/nginx
             mkdir -p /root/ad_service/logs/nginx
             
-            echo "✅ Server cleaned"
+            echo "✅ Server cleaned (database data preserved)"
 
       - name: Copy infrastructure files to server
         uses: appleboy/scp-action@master
@@ -153,7 +155,7 @@ jobs:
           target: "/root/ad_service/"
           overwrite: true
 
-      - name: Ensure ports are free for Certbot
+      - name: Ensure ports are free
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -162,17 +164,17 @@ jobs:
           script: |
             echo "🔧 Ensuring ports 80 and 443 are free..."
             
-            # Останавливаем системные сервисы
-            systemctl stop nginx 2>/dev/null || echo "nginx stopped or not running"
-            systemctl stop apache2 2>/dev/null || echo "apache2 stopped or not running"
+            # Простая проверка и очистка портов
+            echo "Checking port status:"
+            netstat -tulpn | grep -E ':(80|443)' || echo "Ports are free"
             
-            # Убиваем процессы на портах 80 и 443
-            lsof -ti:80 | xargs -r kill -9 2>/dev/null || true
-            lsof -ti:443 | xargs -r kill -9 2>/dev/null || true
+            # Останавливаем только системные сервисы (без убийства процессов)
+            systemctl stop nginx 2>/dev/null || echo "nginx was not running"
+            systemctl stop apache2 2>/dev/null || echo "apache2 was not running"
             
-            echo "✅ Ports should be free now"
+            echo "✅ Port check completed"
 
-      - name: Install Certbot and obtain SSL certificate FIRST
+      - name: Deploy application first (without nginx)
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -180,57 +182,43 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -e
-            echo "🔐 Installing Certbot..."
-            
-            # Обновляем пакеты и устанавливаем certbot
-            apt-get update
-            apt-get install -y certbot
-            
-            echo "✅ Certbot installed"
-            
-            echo "Obtaining SSL certificate..."
-            # Получаем SSL сертификат ДО запуска nginx
-            certbot certonly --standalone \
-              -d mart.ktsf.ru \
-              -d www.mart.ktsf.ru \
-              --non-interactive \
-              --agree-tos \
-              --email anton60874022@mail.ru \
-              --preferred-challenges http
-            
-            echo "✅ SSL certificate obtained"
-
-      - name: Deploy all containers at once
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.HOST }}
-          username: ${{ secrets.USER }}
-          password: ${{ secrets.SSH_PASSWORD }}
-          script: |
-            set -e
-            echo "🚀 Deploying all containers..."
+            echo "🚀 Starting initial deployment (without nginx)..."
             cd /root/ad_service/
             
             echo "1. Checking .env file..."
             if [ -f .env ]; then
               echo "✅ .env file exists"
+              echo "SECRET_KEY from .env:"
+              grep SECRET_KEY .env
+              echo "All variables in .env:"
+              cat .env
             else
               echo "❌ .env file not found!"
               exit 1
             fi
             
-            echo "2. Logging in to Docker Hub..."
+            echo "2. Checking docker-compose.yml..."
+            if [ -f docker-compose.yml ]; then
+              echo "✅ docker-compose.yml exists"
+              echo "Checking for web service and environment variables..."
+              grep -A 10 "web:" docker-compose.yml || echo "No web service found"
+            else
+              echo "❌ docker-compose.yml not found!"
+              exit 1
+            fi
+            
+            echo "3. Logging in to Docker Hub..."
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
             
-            echo "3. Pulling latest application image..."
+            echo "4. Pulling latest application image..."
             docker pull anton60874022/ad_service:latest
             
-            echo "4. Starting ALL containers..."
-            docker-compose up -d
+            echo "5. Starting containers without nginx..."
+            docker-compose up -d db redis web
             
-            echo "5. Waiting for database to be ready..."
+            echo "6. Waiting for database to be ready..."
             for i in {1..30}; do
-              if docker-compose exec -T db pg_isready -U postgres 2>/dev/null; then
+              if docker-compose exec -T db pg_isready -U postgres; then
                 echo "✅ Database is ready!"
                 break
               else
@@ -239,50 +227,70 @@ jobs:
               fi
             done
             
-            echo "6. Running migrations..."
+            echo "7. Check environment of web container for SECRET_KEY..."
+            if docker-compose exec -T web printenv SECRET_KEY; then
+              echo "✅ SECRET_KEY is set in the container."
+            else
+              echo "❌ SECRET_KEY is not set in the container."
+              echo "Stopping deployment."
+              exit 1
+            fi
+            
+            echo "8. Waiting for application to start..."
+            sleep 15
+            
+            echo "9. Running migrations..."
             docker-compose exec -T web python manage.py migrate --noinput
             
-            echo "7. Collecting static files..."
-            docker-compose exec -T web python manage.py collectstatic --noinput --clear || echo "Static collection completed"
+            echo "10. Collecting static files..."
+            docker-compose exec -T web python manage.py collectstatic --noinput --clear || echo "Static collection warning"
             
-            echo "✅ All containers deployed!"
+            echo "✅ Initial deployment completed!"
 
-      - name: Verify deployment
+      - name: Install Certbot and obtain SSL certificate using standalone
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            echo "🔍 Verifying deployment..."
+            set -e
+            echo "🔐 Installing Certbot and obtaining SSL certificate..."
+            
+            apt-get update
+            apt-get install -y certbot
+            
+            echo "✅ Certbot installed successfully"
+            
+            echo "Obtaining SSL certificate using standalone method..."
+            certbot certonly --standalone -d mart.ktsf.ru -d www.mart.ktsf.ru --non-interactive --agree-tos --email anton60874022@mail.ru
+            
+            echo "✅ SSL certificate obtained successfully!"
+
+      - name: Deploy nginx with SSL configuration
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            set -e
+            echo "🚀 Deploying nginx with SSL configuration..."
             cd /root/ad_service/
             
-            echo "1. Container status:"
+            echo "1. Starting nginx container..."
+            docker-compose up -d nginx
+            
+            echo "2. Waiting for nginx to start..."
+            sleep 5
+            
+            echo "3. Testing nginx configuration..."
+            docker-compose exec nginx nginx -t && echo "✅ Nginx configuration is valid"
+            
+            echo "4. Checking all services status..."
             docker-compose ps
             
-            echo "2. Waiting for services to stabilize..."
-            sleep 10
-            
-            echo "3. Checking nginx configuration..."
-            docker-compose exec nginx nginx -t && echo "✅ Nginx config OK"
-            
-            echo "4. Testing HTTPS internally..."
-            if curl -f -H "Host: mart.ktsf.ru" https://localhost/ --insecure --connect-timeout 10; then
-              echo "✅ HTTPS is working!"
-            else
-              echo "⚠️  HTTPS test failed, checking logs..."
-              docker-compose logs web --tail=20
-              docker-compose logs nginx --tail=20
-            fi
-            
-            echo "5. Basic health check..."
-            docker-compose exec web python -c "
-            import os
-            os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ad_service.settings')
-            import django
-            django.setup()
-            print('✅ Django can be initialized')
-            "
+            echo "✅ Nginx deployment completed!"
 
       - name: Setup SSL certificate auto-renewal
         uses: appleboy/ssh-action@master
@@ -293,50 +301,79 @@ jobs:
           script: |
             echo "🔄 Setting up SSL certificate auto-renewal..."
             
-            # Создаем скрипт для обновления сертификатов
             cat > /root/renew_ssl.sh << 'EOF'
             #!/bin/bash
             echo "$(date): Starting SSL certificate renewal..."
             
-            # Останавливаем nginx временно
             cd /root/ad_service
             docker-compose stop nginx
             
-            # Обновляем сертификаты
             if certbot renew --standalone --non-interactive; then
                 echo "SSL certificates renewed successfully"
-                # Запускаем nginx обратно
                 docker-compose start nginx
-                # Перезагружаем конфигурацию nginx
-                docker-compose exec nginx nginx -s reload
                 echo "Nginx restarted with new certificates"
             else
                 echo "SSL certificate renewal failed"
-                # В любом случае запускаем nginx обратно
                 docker-compose start nginx
             fi
             EOF
             
             chmod +x /root/renew_ssl.sh
             
-            # Добавляем cron задачу
             (crontab -l 2>/dev/null; echo "0 3 * * * /root/renew_ssl.sh >> /var/log/ssl-renewal.log 2>&1") | crontab -
             
             echo "✅ SSL auto-renewal configured!"
 
-      - name: Final test from runner
-        run: |
-          echo "🔍 Final test from GitHub runner..."
-          echo "Waiting for DNS and services to stabilize..."
-          sleep 30
-          
-          for i in {1..5}; do
-            echo "Attempt $i/5 to connect to https://mart.ktsf.ru..."
-            if curl -f -m 30 https://mart.ktsf.ru/ 2>/dev/null; then
-              echo "✅ Site is accessible!"
-              break
+      - name: Verify HTTPS deployment and test email again
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            echo "🔍 HTTPS deployment verification..."
+            cd /root/ad_service/
+            
+            echo "1. Container status:"
+            docker-compose ps
+            
+            echo "2. Testing email after full deployment..."
+            docker-compose exec -T web python -c "
+            import os
+            os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ad_service.settings')
+            import django
+            django.setup()
+            from django.core.mail import send_mail
+            from django.conf import settings
+            
+            try:
+                send_mail(
+                    'Final Test Email from HTTPS Site',
+                    'This is a final test email from https://mart.ktsf.ru',
+                    settings.DEFAULT_FROM_EMAIL,
+                    ['anton60874022@mail.ru'],
+                    fail_silently=False,
+                )
+                print('✅ Final test email sent from HTTPS site!')
+            except Exception as e:
+                print(f'❌ Final email test failed: {e}')
+            "
+            
+            echo "3. Testing HTTPS accessibility..."
+            if curl -f -H "Host: mart.ktsf.ru" https://localhost/ --insecure; then
+              echo "✅ HTTPS is working!"
             else
-              echo "Attempt $i failed, waiting 10 seconds..."
-              sleep 10
+              echo "⚠️  HTTPS test failed"
             fi
-          done || echo "⚠️  Could not connect, but deployment may still be successful"
+            
+            echo "🎉 Deployment verification complete!"
+
+      - name: Final HTTPS test from runner
+        run: |
+          echo "🔍 Testing HTTPS from GitHub runner..."
+          sleep 10
+          if curl -f https://mart.ktsf.ru/; then
+            echo "✅ HTTPS domain is accessible from internet"
+          else
+            echo "⚠️  Domain might not be accessible yet"
+          fi
