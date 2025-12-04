@@ -42,28 +42,36 @@ jobs:
         run: |
           echo "🔧 Creating .env file from GitHub Secrets..."
           cat > .env << EOF
+          # Django (ИСПРАВЛЕНО: используем правильные имена переменных!)
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          DEBUG=${{ secrets.DEBUG }}
+          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+          
           # Database
           POSTGRES_DB=${{ secrets.POSTGRES_DB }}
           POSTGRES_USER=${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
-          DATABASE_URL=postgres://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@db:5432/${{ secrets.POSTGRES_DB }}
-          
-          # Django
-          DJANGO_SECRET_KEY=${{ secrets.DJANGO_SECRET_KEY }}
-          DJANGO_DEBUG=${{ secrets.DJANGO_DEBUG }}
-          DJANGO_ALLOWED_HOSTS=${{ secrets.DJANGO_ALLOWED_HOSTS }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
           
           # Redis
-          REDIS_URL=redis://redis:6379/0
+          REDIS_URL=${{ secrets.REDIS_URL }}
           
-          # Other settings
+          # Email (Mail.ru) - ВАЖНО: используем те же имена, что и в settings.py
+          EMAIL_HOST=${{ secrets.EMAIL_HOST }}
+          EMAIL_PORT=${{ secrets.EMAIL_PORT }}
+          EMAIL_USE_TLS=${{ secrets.EMAIL_USE_TLS }}
+          EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
+          DEFAULT_FROM_EMAIL=${{ secrets.EMAIL_HOST_USER }}  # Добавляем это!
+          
+          # Security (для продакшена)
           CSRF_TRUSTED_ORIGINS=${{ secrets.CSRF_TRUSTED_ORIGINS }}
-          CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}
           EOF
           
           echo "✅ .env file created"
-          echo "First 3 lines (for verification):"
-          head -3 .env
+          echo "Checking email settings..."
+          grep EMAIL .env
 
       - name: Install Docker Compose on server
         uses: appleboy/ssh-action@master
@@ -136,7 +144,7 @@ jobs:
           overwrite: true
           strip_components: 1
 
-      # === ТЕПЕРЬ .env СУЩЕСТВУЕТ И ЕГО МОЖНО СКОПИРОВАТЬ ===
+      # === КОПИРУЕМ .env ===
       - name: Copy .env to server
         uses: appleboy/scp-action@master
         with:
@@ -177,17 +185,26 @@ jobs:
             echo "🚀 Starting initial deployment (without nginx)..."
             cd /root/ad_service/
             
-            echo "1. Logging in to Docker Hub..."
+            echo "1. Checking .env file..."
+            if [ -f .env ]; then
+              echo "✅ .env file exists"
+              echo "Email settings from .env:"
+              grep EMAIL .env || echo "No EMAIL settings found"
+            else
+              echo "❌ .env file not found!"
+              exit 1
+            fi
+            
+            echo "2. Logging in to Docker Hub..."
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
             
-            echo "2. Pulling latest application image..."
+            echo "3. Pulling latest application image..."
             docker pull anton60874022/ad_service:latest
             
-            echo "3. Starting containers without nginx..."
-            # Запускаем все сервисы кроме nginx сначала
+            echo "4. Starting containers without nginx..."
             docker-compose up -d db redis web
             
-            echo "4. Waiting for database to be ready..."
+            echo "5. Waiting for database to be ready..."
             for i in {1..30}; do
               if docker-compose exec -T db pg_isready -U postgres; then
                 echo "✅ Database is ready!"
@@ -198,14 +215,43 @@ jobs:
               fi
             done
             
-            echo "5. Waiting for application to start..."
+            echo "6. Waiting for application to start..."
             sleep 15
             
-            echo "6. Running migrations..."
+            echo "7. Running migrations..."
             docker-compose exec -T web python manage.py migrate --noinput
             
-            echo "7. Collecting static files..."
+            echo "8. Collecting static files..."
             docker-compose exec -T web python manage.py collectstatic --noinput --clear || echo "Static collection warning"
+            
+            echo "9. Testing email configuration..."
+            docker-compose exec -T web python -c "
+            import os
+            from django.core.mail import send_mail
+            from django.conf import settings
+            
+            print('Testing email configuration...')
+            print('EMAIL_BACKEND:', settings.EMAIL_BACKEND)
+            print('EMAIL_HOST:', settings.EMAIL_HOST)
+            print('EMAIL_PORT:', settings.EMAIL_PORT)
+            print('EMAIL_HOST_USER:', settings.EMAIL_HOST_USER)
+            print('DEFAULT_FROM_EMAIL:', settings.DEFAULT_FROM_EMAIL)
+            
+            try:
+                send_mail(
+                    'Test Email from Production Server',
+                    'This is a test email from mart.ktsf.ru',
+                    settings.DEFAULT_FROM_EMAIL,
+                    ['anton60874022@mail.ru'],
+                    fail_silently=False,
+                )
+                print('✅ Test email sent successfully!')
+            except Exception as e:
+                print(f'❌ Email sending failed: {e}')
+                print('Please check:')
+                print('1. EMAIL_HOST_PASSWORD is set:', 'EMAIL_HOST_PASSWORD' in os.environ)
+                print('2. Mail.ru app password is correct')
+            "
             
             echo "✅ Initial deployment completed!"
 
@@ -219,15 +265,13 @@ jobs:
             set -e
             echo "🔐 Installing Certbot and obtaining SSL certificate..."
             
-            # Обновляем пакеты и устанавливаем Certbot
             apt-get update
             apt-get install -y certbot
             
             echo "✅ Certbot installed successfully"
             
             echo "Obtaining SSL certificate using standalone method..."
-            # Получаем SSL сертификат (порт 80 должен быть свободен)
-            certbot certonly --standalone -d mart.ktsf.ru -d www.mart.ktsf.ru --non-interactive --agree-tos --email ${{ secrets.ADMIN_EMAIL }}
+            certbot certonly --standalone -d mart.ktsf.ru -d www.mart.ktsf.ru --non-interactive --agree-tos --email anton60874022@mail.ru
             
             echo "✅ SSL certificate obtained successfully!"
 
@@ -265,36 +309,30 @@ jobs:
           script: |
             echo "🔄 Setting up SSL certificate auto-renewal..."
             
-            # Создаем скрипт для обновления сертификатов
             cat > /root/renew_ssl.sh << 'EOF'
             #!/bin/bash
             echo "$(date): Starting SSL certificate renewal..."
             
-            # Останавливаем nginx временно
             cd /root/ad_service
             docker-compose stop nginx
             
-            # Обновляем сертификаты
             if certbot renew --standalone --non-interactive; then
                 echo "SSL certificates renewed successfully"
-                # Запускаем nginx обратно
                 docker-compose start nginx
                 echo "Nginx restarted with new certificates"
             else
                 echo "SSL certificate renewal failed"
-                # В любом случае запускаем nginx обратно
                 docker-compose start nginx
             fi
             EOF
             
             chmod +x /root/renew_ssl.sh
             
-            # Добавляем cron задачу для обновления сертификатов
             (crontab -l 2>/dev/null; echo "0 3 * * * /root/renew_ssl.sh >> /var/log/ssl-renewal.log 2>&1") | crontab -
             
             echo "✅ SSL auto-renewal configured!"
 
-      - name: Verify HTTPS deployment
+      - name: Verify HTTPS deployment and test email again
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOST }}
@@ -307,48 +345,39 @@ jobs:
             echo "1. Container status:"
             docker-compose ps
             
-            echo "2. Checking nginx logs for errors..."
-            docker-compose logs nginx --tail=20 | grep -i error || echo "No nginx errors found"
+            echo "2. Testing email after full deployment..."
+            docker-compose exec -T web python -c "
+            from django.core.mail import send_mail
+            from django.conf import settings
             
-            echo "3. Testing HTTPS accessibility internally..."
+            try:
+                send_mail(
+                    'Final Test Email from HTTPS Site',
+                    'This is a final test email from https://mart.ktsf.ru',
+                    settings.DEFAULT_FROM_EMAIL,
+                    ['anton60874022@mail.ru'],
+                    fail_silently=False,
+                )
+                print('✅ Final test email sent from HTTPS site!')
+            except Exception as e:
+                print(f'❌ Final email test failed: {e}')
+            "
+            
+            echo "3. Testing HTTPS accessibility..."
             if curl -f -H "Host: mart.ktsf.ru" https://localhost/ --insecure; then
-              echo "✅ HTTPS is working internally!"
+              echo "✅ HTTPS is working!"
             else
-              echo "⚠️  HTTPS internal test failed"
+              echo "⚠️  HTTPS test failed"
             fi
             
-            echo "4. Testing HTTP to HTTPS redirect..."
-            REDIRECT_OUTPUT=$(curl -I -H "Host: mart.ktsf.ru" http://localhost/ 2>/dev/null | head -n 1)
-            if echo "$REDIRECT_OUTPUT" | grep -q "301"; then
-              echo "✅ HTTP to HTTPS redirect is working"
-            else
-              echo "⚠️  HTTP to HTTPS redirect test failed"
-            fi
-            
-            echo "5. Testing static files over HTTPS..."
-            if curl -f -H "Host: mart.ktsf.ru" https://localhost/static/admin/css/base.css --insecure > /dev/null 2>&1; then
-              echo "✅ Static files are serving correctly over HTTPS"
-            else
-              echo "⚠️  Static files HTTPS check failed"
-            fi
-            
-            echo "6. Checking SSL certificate..."
-            if command -v openssl > /dev/null; then
-              openssl s_client -connect localhost:443 -servername mart.ktsf.ru < /dev/null 2>/dev/null | openssl x509 -noout -dates && echo "✅ SSL certificate is valid"
-            else
-              echo "ℹ️  openssl not available, skipping certificate check"
-            fi
-            
-            echo "🎉 HTTPS deployment verification complete!"
-            echo "🔒 Your site is now available at: https://mart.ktsf.ru"
+            echo "🎉 Deployment verification complete!"
 
       - name: Final HTTPS test from runner
         run: |
           echo "🔍 Testing HTTPS from GitHub runner..."
-          echo "Note: This test might fail if DNS hasn't propagated yet"
           sleep 10
           if curl -f https://mart.ktsf.ru/; then
             echo "✅ HTTPS domain is accessible from internet"
           else
-            echo "⚠️  Domain might not be accessible yet (DNS propagation or other issues)"
+            echo "⚠️  Domain might not be accessible yet"
           fi

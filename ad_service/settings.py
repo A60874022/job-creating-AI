@@ -17,7 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Security settings
 SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-fallback-key-for-dev")
-DEBUG = False  # os.environ.get("DEBUG", "False").lower() == "true"
+DEBUG = True  # os.environ.get("DEBUG", "False").lower() == "true"
 ALLOWED_HOSTS = ["mart.ktsf.ru", "www.mart.ktsf.ru", "185.185.142.249", "localhost"]
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
@@ -95,7 +95,7 @@ AUTH_USER_MODEL = "users.User"
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
 ]
-DATABASES = {
+'''DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ.get("POSTGRES_DB", "postgres"),
@@ -106,16 +106,15 @@ DATABASES = {
         ),  # Имя контейнера с PostgreSQL в Docker Compose
         "PORT": os.environ.get("DB_PORT", "5432"),
     }
-}
+}'''
 
-
-"""# Вариант 2: Временное использование SQLite для разработки
+# Вариант 2: Временное использование SQLite для разработки
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
     }
-}"""
+}
 
 CHANNEL_LAYERS = {
     "default": {
