@@ -9,13 +9,6 @@ db.sqlite3-journal
 media/
 staticfiles/
 
-# Environment variables
-.env
-.env.local
-.env.*.local
-.env.production
-.env.development
-.secrets/
 
 # Python
 *.py[cod]
